@@ -1,0 +1,75 @@
+# Unity caches, temporary files, and local editor preferences
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/.obj/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Mm]emoryCaptures.meta
+/[Rr]ecordings/
+/[Rr]ecordings.meta
+
+# Player builds and exported packages
+/[Bb]uild/
+/[Bb]uilds/
+*.apk
+*.aab
+*.apks
+*.unitypackage
+*.app/
+
+# Machine-local PICO/Unity tooling, SDKs, emulator images, and verification output
+/.tools/
+
+# Generated IDE files (keep source code, native plugins, and Unity .meta files)
+/.vs/
+/.vscode/
+/.idea/
+/.consulo/
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.opendb
+*.VC.db
+*.pdb
+*.mdb
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+/[Aa]ssets/Plugins/Editor/JetBrains*
+
+# Unity crash reports, generated diagnostics, and Addressables build output
+sysinfo.txt
+*.stackdump
+*.log
+/[Aa]ssets/[Aa]ddressable[Aa]ssets[Dd]ata/*/*.bin*
+/[Aa]ssets/[Ss]treamingAssets/aa/
+/[Aa]ssets/[Ss]treamingAssets/aa.meta
+
+# Local environment variables and signing credentials
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.keystore
+*.jks
+*.keystore.meta
+*.jks.meta
+
+# Operating-system and editor scratch files
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+*.tmp
+*.bak
+*.swp
+*~

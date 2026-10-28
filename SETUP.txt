@@ -1,0 +1,178 @@
+﻿PICO SPATIAL TOOLKIT - MR DEVELOPMENT AND EMULATOR WORKFLOW
+
+Project: Unity 6000.3.11f1, Android, PICO-native XR, PICO OS 6 / Project Swan.
+The app overlays measurement tools on video passthrough. Its scanned room
+mesh supplies collision surfaces and is hidden from the XR camera.
+
+NORMAL BUILD AND RUN (NO AI OR MCP CONNECTION REQUIRED)
+
+1. Open this project in Unity and wait for compilation to finish.
+2. Open Assets/Scenes/SpatialToolkitWorkbench.unity.
+3. Save with Ctrl+S. To refresh the app's MR wiring, run
+   PICO > Project > Finish MR Workbench Setup, then save again.
+4. Select PICO > Project > Build Development APK.
+   If Unity asks whether to save modified scenes, choose Save.
+   Keep your keystore/key selected in Player Settings > Publishing Settings;
+   enter passwords there if Unity requests them after restarting.
+5. Wait for completion. APK: Builds/Android/spatial-toolkit.apk.
+   Logs/AndroidBuildResult.json records building / succeeded / failed.
+6. Open a normal PowerShell terminal in this project folder and start:
+
+   .\Tools\pico-dev.cmd emulator
+
+   The app declares support for both hands and controllers. In the emulator
+   tracking-mode dropdown, Eye Gesture Mode can be used for controller-free
+   testing; Right/Left Controller Mode remains available. Then run:
+
+   .\Tools\pico-dev.cmd install -Device emulator-5554
+
+   The install command installs/replaces the APK and launches the app.
+   Accept the app's spatial-data permission request if prompted.
+   The controller icon > Controller Setting shows the input bindings.
+   Defaults: right trigger U, right grip O, right A Space, right B Delete;
+   left trigger Q and left grip E. The toolkit uses A/X for Undo and B/Y
+   for snapping. Switch Left/Right Controller Mode to manipulate each hand.
+   For hand/head/gaze operation, see CONTROLLER-FREE OPERATION below.
+7. To inspect application logs:
+
+   .\Tools\pico-dev.cmd logcat -Device emulator-5554
+
+   Press Ctrl+C to stop logs; this does not close the app.
+
+ALTERNATIVE BUILD WITH UNITY CLOSED
+
+Save and close this project in Unity, then run:
+
+   .\Tools\pico-dev.cmd build
+   .\Tools\pico-dev.cmd emulator
+   .\Tools\pico-dev.cmd install -Device emulator-5554
+
+Use the Editor build menu when the project is already open. Batch builds
+need signing credentials available to Unity; passwords are not stored in
+these launcher scripts.
+
+SAVED MR SCENE CONFIGURATION
+
+These assets and scene objects are saved; do not add another rig per build.
+The settings can be inspected and maintained manually:
+
+- File > Build Profiles: Android active; SpatialToolkitWorkbench.unity enabled.
+- Project Settings > XR Plug-in Management > Android: PICO loader enabled.
+- XR Plug-in Management > PICO: App Mode = XR - Rendering by Unity Engine;
+  Stereo Rendering Mode = MultiPass. The separate Spatial rendering mode
+  is not this app's mode, even though Spatial Adapter remains installed.
+- One XR Origin with PXR Manager, tracked PICO controller models and the
+  imported PICO MCP SpatialMeshManager driver. Locomotion stays disabled.
+- PXR Manager Inspector: Video Seethrough, Spatial Mesh, Spatial Anchor,
+  MR Safeguard, Hand Tracking and Eye Tracking enabled. Hand Tracking
+  Support = Controllers And Hands (controllers are optional).
+- XR camera: enabled, Solid Color, background RGBA 0/0/0/0, HDR off. Old
+  desktop Camera and AudioListener disabled. URP HDR disabled.
+- XR Origin: Floor tracking, Camera Y Offset 0. PXR Permission Request:
+  Request MR enabled.
+- Spatial Toolkit App: View Camera = XR camera; Tracking Origin = Camera
+  Offset under XR Origin.
+- SpatialMeshManager: configured prefab has MeshCollider and uses layer 6.
+  XR camera excludes layer 6; physics raycasts still hit it. App overlays
+  and controller models remain visible over passthrough.
+
+Finish MR Workbench Setup reapplies the app wiring, capability flags,
+camera settings, collision-layer visibility and permission component, then
+saves the scene. It requires the existing PICO rig and mesh driver. It does
+not install packages or change XR loaders.
+
+CONTROLLER-FREE OPERATION (2026-10-28)
+
+Rebuild and reinstall the APK after these source/settings changes. The old
+APK was controller-only. No additional SDK packages or scene rig are needed.
+
+Default Auto mode follows the active PICO input device. With hands, it uses
+valid eye gaze plus pinch, falling back to the native hand ray if eye data is
+unavailable. Eye gaze requires supported hardware, system calibration and
+permission. Permission denial does not block hand-ray operation.
+
+Enable hand tracking in the headset's system input settings. In the app,
+open Controls to choose Auto, Hands Only (hand ray), Eye Gaze + Pinch,
+Head Aim + Pinch, or Hands-free Dwell. The choice is saved between sessions.
+Eye Gaze + Pinch falls back to head aim without valid eye data. Hands Only
+never requests eye access. Either single hand works; Left/Right Hand picks
+the preferred hand. The other hand, when tracked, carries the wrist menu.
+
+Pinch: select a menu button or place on the scanned surface.
+Pinch an existing item/node, hold, then move: drag. Release: drop.
+Gaze is captured on pinch, so looking elsewhere cannot move a held item.
+With one hand, the menu sits beside the initial view in world space; it
+does not chase the head while aiming. Pin Menu fixes it in place.
+Undo, snapping, units, exact numeric entry, Save, Load and Snapshot remain
+menu actions. Controls also offers pointer Reach +/-, Rotate +/-15 degrees
+for the selected furniture box, and Delete Selected. Select an item by
+grabbing/releasing it first. Delete remains undoable. Controller shortcuts
+and throw-behind deletion are retained; no throwing is required with hands.
+
+Hands-free Dwell is an app accessibility option, independent of any named
+PICO system accessibility setting. Hold gaze/head aim steady for 1.3 seconds
+to activate. Buttons brighten and the reticle grows with progress. Look
+away before repeating an action. Dwell on an item to pick it up, aim to
+move, then dwell on a mapped surface to drop. Looking at a menu button
+while moving and activating it cancels the unfinished move first.
+If neither hand is available, a head-dwell menu is offered automatically;
+use Controls to enable full Hands-free Dwell. This recovery menu does not
+automatically place items in the room.
+
+Tracking loss, changing physical input source/profile/hand preference,
+headset removal and app suspension cancel unfinished moves. A pinched hand
+or held controller button must be released after reacquisition. A blink
+does not cancel a drag owned by the same tracked hand.
+
+Level uses the tracked controller, or approximate index-finger alignment
+with hands. Hands-free users compare the edge with the gravity-aligned grid;
+head/eye gaze is never presented as the physical object's level angle.
+
+Validation: Editor and Android runtime sources and the setup helper compile
+against installed SDK assemblies. PICO > Spatial Toolkit > Run Input Replay
+Checks runs 27 deterministic pinch/drag/switching/dwell checks. These checks
+also ran outside the Editor against the compiled Unity types. Live Editor
+automation was unavailable because its connection descriptor was denied to
+the sandbox; no ADB headset was connected. A new APK and live hand/eye/UI
+acceptance are not verified by these checks.
+
+Device acceptance: test all four tools and numeric entry in every profile;
+one left hand, one right hand and two hands; eye permission denied and eye
+tracking disabled; dwell-only entry from the recovery menu; no repeated
+Load confirmation while dwelling; grip/pinch switching; tracking loss,
+system menus and resume during a drag; rotate/delete/undo and saved prefs.
+Keep the system Home/Menu gestures available to PICO OS.
+
+EDITOR PREVIEW AND DEVICE ACCEPTANCE
+
+Unity Play Mode without XR creates an explicitly labeled simulated room.
+Desktop: left click places, right drag moves, Z undoes, B toggles snapping,
+mouse wheel changes ray reach. Click dimensions for numeric input.
+The simulated room is not instantiated in Android runtime.
+
+Emulator launch is separate from real-headset MR validation. Verify physical
+passthrough, scanned surfaces, controller tracking, measurement accuracy,
+and anchor save/relocalization on the intended headset. Consumer snapshots
+also need a PICO Platform app ID and device checks of passthrough capture
+and Gallery visibility.
+
+LOCAL TOOLS
+
+   .\Tools\pico-dev.cmd doctor     Inspect installed tooling
+   .\Tools\pico-dev.cmd open       Open the Android Unity project
+   .\Tools\pico-dev.cmd editor     Open the separate PICO Spatial Editor
+
+Installed: PICO XR 6.1.1, Spatial Adapter 6.1.0, PICO Emulator 6.1.0,
+Spatial Editor 6.1.7, Unity Android SDK/NDK/OpenJDK.
+Launchers set PICO_HOME, ANDROID_HOME and JAVA_HOME for their own process.
+Keep .tools in place. Android Studio is not required for this Unity workflow.
+
+VERIFIED ON 2026-10-21
+
+Development APK built successfully and installed on emulator-5554. The app
+reached the foreground; runtime logs confirmed spatial-data permission,
+passthrough-layer creation and successful sensing-provider startup. Current
+startup logs contained no managed Unity application errors. Build output
+included SDK/package warnings; this is not full headset acceptance testing.
+Evidence: Logs/AndroidBuildResult.json, Logs/EmulatorLaunchResult.json, and
+.tools/checks/emulator-toolkit-logcat.txt.

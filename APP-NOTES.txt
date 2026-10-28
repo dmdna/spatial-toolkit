@@ -1,0 +1,219 @@
+SPATIAL TOOLKIT — IMPLEMENTATION AND DEVICE HANDOFF
+
+Target: Unity PICO XR, Project Swan / PICO OS 6, consumer edition.
+The user approved changing the saved mode from picospatial to picoxr.
+Existing SDKs reused: PICO XR 6.1.1, Spatial Adapter 6.1.0, Input System,
+XR Interaction Toolkit, Unity UI and URP. No new SDK package was installed.
+
+REVIEW IN UNITY
+
+Open Assets/Scenes/SpatialToolkitWorkbench.unity and press Play.
+The workbench contains an editor-only simulated room, clearly labeled as such.
+That room is not instantiated in a headset build. The prior untitled scene was
+preserved separately as Assets/Scenes/WorkspaceBeforeToolkit.unity.
+
+The saved scene now includes a native PICO XR Origin, controller models,
+passthrough and spatial mesh. Spatial anchors and spatial-data permission
+are enabled. The toolkit references the tracked XR camera/Camera Offset.
+The camera excludes mesh layer 6, retaining collision without drawing the
+room mesh over passthrough. MR stereo uses MultiPass with HDR disabled.
+See SETUP.txt for repeatable setup/build/install instructions and
+Logs/AndroidBuildResult.json for the most recent Android build result.
+Real-headset acceptance tests below remain necessary.
+
+IMPLEMENTED TOOLS
+
+Smart Measure
+  Trigger places chained nodes on actual collision surfaces. A live segment
+  readout follows the pointer. Selecting an existing node finishes the path;
+  the palette has explicit Finish Path and Close Area actions. Polygon area works
+  on floor, wall and other planar outlines, including concave outlines.
+  Crossing, duplicate, collinear and nonplanar outlines are rejected.
+  Area requires coplanarity within 2 cm. The snap grid uses 1 cm or half an inch.
+  Feet/inches round to one eighth of an inch; square feet use the area conversion.
+  The app refuses placement when no mapped surface is available.
+
+Fit Check
+  Enter exact width, height and depth through the wrist keypad (cm or inches),
+  or adjust using +/−. A translucent box preview sits at the pointed floor.
+  A collider and kinematic Rigidbody support collision queries. Overlapping
+  placement is refused; dragging previews become red when blocked. Rotate the
+  held controller to yaw the furniture; snap mode uses 15-degree yaw steps.
+  These are kinematic placement constraints, not a free-falling furniture sim.
+
+Picture Hanging
+  Enter equal frame width/height, gap, count (1–8), and hanger distance below
+  the top. The app centers the group on the wall and draws frame outlines and
+  individual nail crosshairs. The hanger inset is supplied by the user; the app
+  does not infer hook locations, picture-wire sag or wall fastener suitability.
+
+Level & Plumb
+  Place a gravity-aligned grid on a wall. Point the controller along the object
+  edge. The readout turns green within one degree of horizontal or vertical.
+  This measures controller orientation. It does not recognize or track an
+  arbitrary physical object held up against the grid.
+
+Snapshots
+  Editor capture uses Unity ScreenCapture. Android capture uses the consumer
+  PICO Platform Highlight API: initialize, start session, capture, SaveMedia.
+  It requires a configured PICO Platform app ID and successful platform calls.
+  The palette/pointer are hidden during capture. Passthrough composition and
+  Gallery/smartphone availability remain explicit device acceptance checks;
+  a successful SDK SaveMedia response is not proof of either behavior.
+
+INTERACTION AND VISUALS
+
+The non-dominant controller or tracked hand carries the wrist palette.
+Rotating its local up axis upward reveals the menu. The controller trigger
+or Pin Menu action pins/unpins it. A world-space menu is available when
+only one hand/controller is tracked or when using hands-free dwell.
+
+As of 2026-10-28, native PICO hand and optional eye tracking are enabled.
+Auto mode follows controllers or gaze/pinch with hand-ray fallback. Controls
+also offers hand-ray-only, eye/head-pinch and hands-free eye/head dwell.
+Pinch selects/places; pinch and hold an existing item to drag; release to
+drop. Menu actions cover all button shortcuts, reach, rotate and delete.
+Single-hand use and a head-dwell recovery menu do not require controllers.
+See SETUP.txt, CONTROLLER-FREE OPERATION, for the full mapping and validation
+limits. This is app input support within the existing PICO XR mode.
+
+Dominant trigger: place / select. Grip: drag a node, furniture box or wall tool.
+Throw a held item behind the head and release above the throw-speed threshold
+to delete it. A/X: undo. B/Y: toggle snapping. Thumbstick up/down adjusts pointer
+reach (0.2–12 m). The platform Menu button is left to PICO system behavior.
+Left-handed mode swaps the controller roles. Undo keeps the last 50 actions.
+Rooms are limited to 100 artifacts and measurement paths to 128 nodes.
+
+The UI uses dark translucent rounded panels, mint/coral/lavender accents,
+an exact 0.002 m controller ray and unlit overlays. Other guides modestly thicken
+with distance for readability. Readout text uses an overlay shader so billboard
+labels do not disappear into wall geometry. Both custom shaders include
+instancing and stereo macros and are retained through scene material assets.
+
+Desktop: left click = trigger, right drag = grip, Z = undo, B = snap,
+mouse wheel = pointer reach. The palette stays visible without a controller.
+Click a dimension row to open the numeric keypad.
+
+ROOM PERSISTENCE
+
+Save Room creates/persists a PICO spatial anchor and stores its UUID with the
+geometry in room-local coordinates. A retained runtime handle continuously
+updates the room pose. Lost localization hides saved overlays and blocks new
+placement. Load queries and locates the saved anchor before replacing the
+current workspace. Failed localization preserves existing work.
+
+Device anchor support must be enabled before XR loader initialization. No
+world-coordinate fallback is presented as a persisted real-room anchor.
+Editor sessions are explicitly marked simulated and cannot load on device.
+Writes stage a temporary file and retain a backup when replacing an old save.
+Loaded session geometry is validated before native calls or rendering.
+
+Save files use Application.persistentDataPath. The automated interaction suite
+overrides storage into .tools/checks/workbench-session so it does not overwrite
+the user's saved room. No cloud service or account is used for room geometry.
+
+AUTOMATED CHECKS
+
+ToolkitGeometryChecks.Run(): area orientation, concavity, invalid outlines,
+unit conversion and rounding, surface snapping, nail spacing and level/plumb.
+Result: all 18 geometry checks passed in Unity.
+
+PICO > Spatial Toolkit > Run Play Mode Interaction Checks runs the four tool
+workflows with a virtual Input System mouse through the real runtime pointer
+path. Start it in a fresh, empty workbench Play Mode session. It checks node
+placement, closed area, undo, grip-drag, keypad input, box placement/collision,
+frame/grid placement, and editor session save/restore. The report is written
+to .tools/checks/workbench-interaction.txt.
+Result: all 14 interactive checks passed in Unity Play Mode. Editor and Android
+runtime source compilation also passed. Both custom shaders were checked in
+the Editor; headset stereo rendering remains a device acceptance test.
+
+MR SETUP AND VERIFICATION
+
+On 2026-10-21 the installed Unity MCP relay was reached directly through
+its stdio interface; all required PICO tools and Unity_RunCommand were
+discovered before scene mutation. No SDK was reinstalled. Starter Assets
+was imported from the registered XRI 3.4.0 package. Domain reloads settled
+before subsequent calls. VST, controller and spatial-mesh status all passed
+with exactly one active camera.
+
+The SDK App Mode was aligned to XR, matching the saved picoxr project mode;
+the existing Android PICO loader was retained. The reusable menu
+PICO > Project > Finish MR Workbench Setup reapplies the app-specific wiring
+and saves the scene. Use PICO > Project > Build Development APK for a build
+in the open Editor; see SETUP.txt for the terminal alternative.
+
+Acceptance tests on a real headset:
+  - Compare distances and areas against measured reference targets.
+  - Verify floor/wall snap and box collision against the scanned room.
+  - Check wrist menu, left-handed controls, grip/throw/delete and undo.
+  - Remove/replace the headset and verify anchors relocalize without jumps.
+  - Restart the app and restore the saved room in its original location.
+  - Test permission denial, tracking loss and anchor-service failures.
+  - Configure the Platform app ID; verify captured passthrough plus overlays,
+    Gallery presence and smartphone access.
+
+The Meta reference listing was inaccessible to the browser tool. This original
+implementation follows the supplied design document rather than inferred
+visual or behavioral details from that listing.
+
+
+MENU AND PATH UPDATE (2026-10-28, feature release 0.2.0)
+
+Gear (top left) opens Settings on the existing panel. Settings persist the
+Wristwatch Gesture toggle and Option 1/2/3 visual preset. About credits Diego
+Medina Molina and the PICO Vibe Lab and reads Application.version.
+Option 1 preserves the original palette. Option 2 uses blue/amber/orange;
+Option 3 uses a black menu, white/gray/yellow accents, heavier outlined guides,
+and outlined world labels. Meaningful states retain text cues rather than
+relying on hue alone. Presets update existing and future room artifacts.
+
+The wrist panel is 20 percent smaller and sits another 10 cm outward, with
+a 3 cm higher offset. Disabling the gesture uses the one-hand world-pinned
+behavior even with two tracked hands. Minimize (top right) shows a rounded
+bar: current tool, Undo, units, hand. Its background/tool label expands it.
+Undo, units and hand share their left-to-right positions in both layouts.
+The complete panel blocks placement rays. UI endpoints follow the actual
+input ray intersection and never rotate toward the center of a control.
+
+Undo activates on press. After 0.45 seconds holding, a 1.2-second progress
+bar fills and the label becomes Clear All (Hold). Completion clears every
+room artifact. Release, aim leaving the button, tracking/focus loss, or menu
+navigation cancels the pending hold. Clear All itself is undoable.
+
+Measure and Level paths finish on a second press within 0.32 seconds, or
+by selecting an existing node. With snapping off, this uses the visible
+1 cm node radius. Close Area remains an explicit main-panel action.
+Level retains its gravity grid and adds a connected AnglePath artifact,
+with horizontal and vertical angles computed from the actual endpoints.
+Those paths support node editing, undo, deletion, and room save/load.
+Hang previews reuse the placed frame/nail drawing routine and update live
+while editing count, dimensions, gap and hanger inset on the menu.
+
+ToolkitBuildVersion runs for all Unity builds: an explicitly advanced
+feature version is used as-is once, subsequent builds increment the patch,
+and the Android integer build code increments on every build attempt.
+Advance 0.X.0 explicitly for the next feature release. The record lives in
+ProjectSettings/ToolkitBuildVersion.json.
+
+New regression suite: PICO > Spatial Toolkit > Run Menu and Path Feature
+Checks (fresh empty workbench Play Mode). Report:
+.tools/checks/toolkit-features.txt. It uses isolated preference storage.
+
+Verification for the menu/path update:
+  - 18 geometry checks and 27 tracked-input replay checks passed.
+  - All 33 menu/path feature checks passed in Unity Play Mode.
+  - Main, Settings, About and compact/hold layouts reviewed via camera captures.
+  - Editor and Android runtime source compilation passed against installed SDKs.
+Physical headset ergonomics, real hand tracking, stereo and room scanning
+still require acceptance on the target headset.
+
+The complete 14-check virtual-mouse workflow also passed in Unity Play Mode,
+including all four tools, keypad entry, collision, dragging, undo and save/load.
+The harness temporarily ignores Editor focus for its synthetic mouse input.
+
+
+Android APK build succeeded on 2026-10-28: version 0.2.0, Android code 2.
+Output: Builds/Android/spatial-toolkit.apk. Existing SDK/package warnings remain.
+This build has not been installed or tested on a physical headset.
+

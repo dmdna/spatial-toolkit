@@ -1,0 +1,11 @@
+{
+  "project_name": "spatial-toolkit",
+  "mode": "picoxr",
+  "unity_version": "6000.3.11f1",
+  "platform": "android",
+  "devices": [
+    "pico swan"
+  ],
+  "business_type": "toC",
+  "pico_unity_init_completed": false
+}
