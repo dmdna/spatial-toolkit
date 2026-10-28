@@ -1,6 +1,10 @@
 Shader "SpatialToolkit/Glass"
 {
-    Properties { _Color ("Tint", Color) = (0.3, 0.9, 0.9, 0.18) }
+    Properties
+    {
+        _Color ("Tint", Color) = (0.3, 0.9, 0.9, 0.18)
+        [Enum(UnityEngine.Rendering.CompareFunction)] _ZTest ("Depth test", Float) = 4
+    }
     SubShader
     {
         Tags { "Queue"="Transparent" "RenderType"="Transparent" "RenderPipeline"="UniversalPipeline" }
@@ -8,6 +12,7 @@ Shader "SpatialToolkit/Glass"
         {
             Blend SrcAlpha OneMinusSrcAlpha
             ZWrite Off
+            ZTest [_ZTest]
             Cull Off
             HLSLPROGRAM
             #pragma vertex vert

@@ -217,3 +217,99 @@ Android APK build succeeded on 2026-10-28: version 0.2.0, Android code 2.
 Output: Builds/Android/spatial-toolkit.apk. Existing SDK/package warnings remain.
 This build has not been installed or tested on a physical headset.
 
+
+SELECTION AND INTERACTION UPDATE (feature release 0.3.0)
+
+Active Measure paths finish on their current or immediately previous node.
+Returning to an earlier node closes a valid area at that node. A suffix
+closure retains the earlier segments as a separate open measurement. Invalid
+outlines stay active with the validation reason. A node from another path may
+supply the closing vertex when it makes a valid area.
+
+A short pinch selects any placed item. The main panel shows Edit Selection:
+Measure/Level nodes offer Finish Path or Start New Path, plus Delete. Starting
+a path at a selected node preserves the original path/area. Fit and Hang load
+the selected item's actual values; dimension, count, gap and inset changes
+update only that item in real time. Fit resizing preserves its floor contact
+and rejects overlaps. Select the tool tab or place on an empty surface to
+leave selection editing. All edits and deletes remain undoable.
+
+Hold a selected item's pinch for 0.22 seconds and move (or hold 0.4 seconds)
+to drag. Controller grip still drags directly. Level paths own their gravity
+grid via gridId, with compatible inference for older saves. Removing an
+intermediate node reconnects the remaining line. Removing the gridded first
+node removes the entire path and its grid. Moving the first node moves the
+grid with it.
+
+Floating menus can be moved with a pinch-hold or controller grip on the thin
+top margin. A minimized menu can be moved through the same gesture on its
+background. A short pinch still expands the pill; drag release leaves it
+floating where placed. Wrist menus cannot be dragged. Brief occlusion of the
+menu wrist holds the existing pose for 0.7 seconds rather than jumping.
+
+Automatic hand input and Hands Only now aim along wrist-to-middle-knuckle
+tracking, with index-knuckle/native-aim fallbacks and light temporal smoothing.
+This avoids the SDK shoulder-biased aim direction and allows wrist rotation
+to steer the ray, even while pinched. Explicit eye/head pinch modes retain
+captured-gaze dragging. Hand presence no longer depends on the validity of
+its SDK aim ray. Native pinch flags remain the selection signal.
+
+Pointer line and dot render in queue 4100, sorting order above the canvas,
+with Always depth testing. Other measurement geometry keeps its normal depth
+test. Opaque high-contrast menus therefore do not cover the interaction ray.
+
+New suite: PICO > Spatial Toolkit > Run Selection and Menu Drag Checks.
+Report: .tools/checks/toolkit-selection.txt. Tests use isolated settings.
+
+Verification: 18 geometry and 28 input checks passed, plus all 42 selection/menu-
+drag checks and all 33 existing menu/path checks. Camera captures confirmed the
+ray and dot remain visible over the opaque Option 3 Fit and Hang edit menus.
+
+
+The full 14-check placement/drag/collision/keypad/save-load workflow passed again.
+Total automated checks for this release: 135. No SDK package changes were made.
+
+
+Android build 0.3.0 (code 3) succeeded on 2026-10-28, was installed on the
+connected Swan headset and launched successfully. ADB confirmed the installed
+version and foreground Unity activity. The sampled app-process startup logs
+contained no Unity/AndroidRuntime errors. Live gesture ergonomics require
+user testing on the headset. Existing SDK build warnings remain.
+
+
+HAND AND MENU HOTFIX (0.3.1)
+
+Restores the pre-0.3 hand interaction: PICO system aim poses for hand rays,
+Auto's optional eye/head fallback policy, and captured ray direction during
+pinched dragging. Hand rotation still controls Fit box yaw, while hand
+translation moves the captured ray. The ray is no longer rebuilt from the
+wrist-to-knuckle axis. When valid fingertip poses are available, the visible
+ray begins between thumb and index tip and ends at the actual system-pointer
+hit dot. This aligns the visual with the pinch without altering hit testing
+or reintroducing snapping to button centers.
+
+Menu drags now store the exact local point selected at pinch/grip start.
+That point follows the captured ray cursor in space, including when the
+panel turns to face the user. The on-screen dot stays at the grab point.
+Both full and minimized menus use the same anchoring. The header handle is
+360 UI units wide (previously 490), leaving more clearance at the corners.
+
+New check menu: PICO > Spatial Toolkit > Run Hand and Menu Hotfix Checks.
+Report: .tools/checks/toolkit-hotfix.txt.
+
+Hotfix verification: 14 targeted rotation/cursor-anchor checks, 42 selection
+checks, 33 menu/path checks, 28 input replays and 18 geometry checks passed.
+Git staging was attempted but denied at .git/index.lock by this session's
+filesystem permissions; publishing requires local Git access.
+
+
+The full 14-check placement/collision/drag/keypad/save-load workflow also
+passed for 0.3.1. All 149 automated checks passed for this hotfix.
+
+
+Android hotfix 0.3.1 (code 4) built successfully and was installed and launched
+on the connected Swan headset. Installed package version and resumed activity
+were verified. The sampled app-process startup logs contained no Unity or
+AndroidRuntime errors. Actual hand-control feel remains a headset acceptance
+check for the user. Existing SDK build warnings remain.
+

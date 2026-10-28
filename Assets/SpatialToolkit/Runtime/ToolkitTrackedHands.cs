@@ -50,7 +50,13 @@ namespace SpatialToolkit
             result.PinchHeld = useLeft ? lpinch : rpinch;
             result.AlignmentForward = useLeft ? ll : rl; result.AlignmentTracked = result.AlignmentForward.sqrMagnitude > 0.5f;
             bool handRay = mode == ToolkitInputMode.HandRay || (!eye && mode == ToolkitInputMode.Automatic);
+            result.HandRay = handRay;
             result.Ray = handRay ? (useLeft ? la : ra) : gaze;
+            if (handRay)
+            {
+                result.VisualOriginTracked = true;
+                result.VisualRayOrigin = PinchOrigin(origin, useLeft ? left : right, result.Ray.origin);
+            }
             result.Source = (useLeft ? "Left hand" : "Right hand") + (handRay ? " ray" : eye ? " + eye gaze" : " + head gaze");
             result.PaletteTracked = useLeft ? r : l;
             result.PalettePosition = useLeft ? rp : lp; result.PaletteRotation = useLeft ? rr : lr;
@@ -80,16 +86,25 @@ namespace SpatialToolkit
             position = origin.TransformPoint(wrist.pose.Position.ToVector3());
             rotation = origin.rotation * wrist.pose.Orientation.ToQuat();
             var aim = new HandAimState();
-            if (!PXR_HandTracking.GetAimState(type, ref aim) || (aim.aimStatus & HandAimStatus.AimComputed) == 0) return false;
-            pinch = (aim.aimStatus & (HandAimStatus.AimIndexPinching | HandAimStatus.AimRayTouched)) != 0;
-            if ((aim.aimStatus & HandAimStatus.AimRayValid) != 0)
+            bool aimComputed = PXR_HandTracking.GetAimState(type, ref aim) && (aim.aimStatus & HandAimStatus.AimComputed) != 0;
+            if (aimComputed) pinch = (aim.aimStatus & (HandAimStatus.AimIndexPinching | HandAimStatus.AimRayTouched)) != 0;
+            // Use the runtime's stabilized pointing pose, rather than a wrist/knuckle axis.
+            ray = new Ray(position, rotation * Vector3.forward);
+            if (aimComputed && (aim.aimStatus & HandAimStatus.AimRayValid) != 0)
                 ray = new Ray(origin.TransformPoint(aim.aimRayPose.Position.ToVector3()), origin.rotation * aim.aimRayPose.Orientation.ToQuat() * Vector3.forward);
-            else return false;
             var tip = joints.jointLocations[(int)HandJoint.JointIndexTip];
             var root = joints.jointLocations[(int)HandJoint.JointIndexProximal];
             if ((tip.locationStatus & HandLocationStatus.PositionTracked) != 0 && (root.locationStatus & HandLocationStatus.PositionTracked) != 0)
                 alignment = origin.TransformDirection((tip.pose.Position.ToVector3() - root.pose.Position.ToVector3()).normalized);
             return true;
+        }
+        static Vector3 PinchOrigin(Transform origin, HandJointLocations joints, Vector3 fallback)
+        {
+            var thumb = joints.jointLocations[(int)HandJoint.JointThumbTip];
+            var index = joints.jointLocations[(int)HandJoint.JointIndexTip];
+            if ((thumb.locationStatus & HandLocationStatus.PositionTracked) == 0 ||
+                (index.locationStatus & HandLocationStatus.PositionTracked) == 0) return fallback;
+            return origin.TransformPoint((thumb.pose.Position.ToVector3() + index.pose.Position.ToVector3()) * 0.5f);
         }
 #endif
         bool TryEye(Transform origin, out Ray ray)

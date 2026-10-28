@@ -8,7 +8,7 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Replays actual raycasts, menu colliders and app actions in the editor room.
-public static class ToolkitFeatureChecks
+public static partial class ToolkitFeatureChecks
 {
     const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
     static SpatialToolkitApp app;
@@ -44,6 +44,7 @@ public static class ToolkitFeatureChecks
         app = UnityEngine.Object.FindFirstObjectByType<SpatialToolkitApp>();
         if (!EditorApplication.isPlaying || !app || app.Session.items.Count != 0) throw new Exception("Start in a fresh empty workbench Play Mode session.");
         palette = UnityEngine.Object.FindFirstObjectByType<ToolkitPalette>();
+        app.SendMessage("OnApplicationFocus", true);
         string originalPreferences = JsonUtility.ToJson(app.Preferences), originalStorage = app.StorageDirectoryOverride;
         bool wasEnabled = app.enabled;
         app.enabled = false;
@@ -96,9 +97,10 @@ public static class ToolkitFeatureChecks
             Check(Active == null && app.Session.items.Single().points.Count == 3, "Rapid second press places the final node and finishes Measure");
             Place(new Vector3(0.4f, 1.5f, 2.49f));
             int nodes = app.Session.items.Sum(i => i.points.Count);
-            var oldNode = app.RoomRoot.TransformPoint(app.Session.items[0].points[0]); Aim(oldNode, true, gesture: true);
+            var oldNode = app.RoomRoot.TransformPoint(app.Session.items.Last().points.Last()); Aim(oldNode, true, gesture: true);
             Check(Active == null && app.Session.items.Sum(i => i.points.Count) == nodes && Get("grabbed") == null, "Pinching an existing snapped node finishes without duplication or dragging");
-            app.Dispatch("snap"); Place(new Vector3(0.5f, 1.6f, 2.49f)); Aim(oldNode, true);
+            app.Dispatch("snap"); Place(new Vector3(0.5f, 1.6f, 2.49f));
+            oldNode = app.RoomRoot.TransformPoint(app.Session.items.Last().points.Last()); Aim(oldNode, true);
             Check(Active == null, "Free-placement path finishes only on the visible node collider");
             Place(new Vector3(0.6f, 1.7f, 2.49f)); Set("lastNodePress", -10f); Aim(oldNode + Vector3.right * 0.04f, true);
             Check(Active != null, "Free-placement input outside the node circle keeps placing");

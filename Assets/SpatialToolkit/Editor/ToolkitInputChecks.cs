@@ -60,6 +60,13 @@ public static class ToolkitInputChecks
         check(!s.TriggerDown && s.GripDown && !s.Undo && !s.ToggleSnap && !s.PinMenu, "Controller shortcuts remain edge triggered");
         s = input.ResolveSample(sample, false, false);
         check(s.GripUp, "Controller grip release is preserved");
+        sample.Gesture = sample.HandRay = true; sample.Source = "Right hand ray";
+        sample.Ray = new Ray(Vector3.zero, Vector3.forward);
+        input.ResolveSample(sample, false, false);
+        input.ResolveSample(sample, true, true);
+        sample.Ray = new Ray(Vector3.zero, Vector3.right);
+        s = input.ResolveSample(sample, true, true);
+        check(s.TriggerHeld && Vector3.Angle(s.Ray.direction, Vector3.forward) < 0.001f, "Hand-ray pinch captures direction so wrist rotation cannot swing the drag position");
         input.Dispose();
 
         var dwell = new ToolkitDwell();

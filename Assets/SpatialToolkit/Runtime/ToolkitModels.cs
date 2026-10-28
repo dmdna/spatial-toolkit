@@ -17,6 +17,8 @@ namespace SpatialToolkit
         public Vector3 dimensions;
         public List<Vector3> points = new List<Vector3>();
         public bool closed;
+        // Angle paths own one gravity grid. Missing links in older saves are inferred on load.
+        public string gridId;
         public int count = 3;
         public float gap = 0.08f, inset = 0.06f;
     }

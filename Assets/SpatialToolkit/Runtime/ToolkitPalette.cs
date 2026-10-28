@@ -3,7 +3,7 @@ using UnityEngine.UI;
 
 namespace SpatialToolkit
 {
-    public sealed class ToolkitPalette : MonoBehaviour
+    public sealed partial class ToolkitPalette : MonoBehaviour
     {
         SpatialToolkitApp app;
         Canvas canvas;
@@ -84,8 +84,13 @@ namespace SpatialToolkit
                 IconButton(panel.transform, new Vector2(-265, 350), "settings", true);
                 IconButton(panel.transform, new Vector2(265, 350), "minimize", false);
             }
+            if (!about)
+            {
+                var dragMargin = Image(panel.transform, new Vector2(360, 14), new Vector2(0, 384), ToolkitVisuals.WithAlpha(ToolkitVisuals.Mint, 0.16f));
+                AddHitTarget(dragMargin, "dragmenu", new Vector2(360, 14));
+            }
             ToolkitVisuals.Text(panel.transform, new Vector2(450, 35), new Vector2(0, 350), "S P A T I A L   T O O L K I T", 22, ToolkitVisuals.Mint);
-            ToolkitVisuals.Text(panel.transform, new Vector2(560, 50), new Vector2(0, 305), app.InputSource, 24, Color.white);
+            ToolkitVisuals.Text(panel.transform, new Vector2(560, 50), new Vector2(0, 305), app.Selection != null ? "EDIT SELECTION" : app.InputSource, 24, Color.white);
             if (settings || about)
             {
                 BuildSettings(panel.transform);
@@ -108,8 +113,13 @@ namespace SpatialToolkit
             for (int i = 0; i < titles.Length; i++)
                 Button(panel.transform, new Vector2(-225 + i * 150, 240), new Vector2(138, 64), titles[i], "tool:" + i,
                     (int)app.Tool == i ? ToolkitVisuals.Mint : ToolkitVisuals.Button);
-            float y = 155;
-            if (app.Tool == ToolkitTool.Measure)
+            var selection = app.Selection;
+            float y = selection != null && app.Tool == ToolkitTool.Hang ? 165 : selection != null ? 130 : 155;
+            if (selection != null && SpatialToolkitApp.IsPath(selection))
+            {
+                BuildPathEdit(panel.transform);
+            }
+            else if (app.Tool == ToolkitTool.Measure)
             {
                 ToolkitVisuals.Text(panel.transform, new Vector2(550, 85), new Vector2(0, y), (app.DwellInput ? "Dwell on a surface to add a node." : app.HandsInput ? "Aim, then pinch to add a node." : "Point at a surface. Trigger to add a node.") + "\nDouble-press or select a node to finish.", 24, Color.white);
                 Button(panel.transform, new Vector2(-140, y - 95), new Vector2(260, 58), "Finish path", "finish");
@@ -117,19 +127,19 @@ namespace SpatialToolkit
             }
             else if (app.Tool == ToolkitTool.Fit)
             {
-                Row("Width", app.Preferences.furniture.x, y, "width");
-                Row("Height", app.Preferences.furniture.y, y - 65, "height");
-                Row("Depth", app.Preferences.furniture.z, y - 130, "depth");
-                ToolkitVisuals.Text(panel.transform, new Vector2(550, 60), new Vector2(0, y - 210), (app.DwellInput ? "Dwell to place or pick up; dwell again to drop." : app.HandsInput ? "Pinch floor to place. Pinch a box and drag." : "Trigger on floor to place. Grip to move.") + "\nBlocked placements show an overlap warning.", 21, Color.white);
+                Row("Width", app.FurnitureDimensions.x, y, "width");
+                Row("Height", app.FurnitureDimensions.y, y - 65, "height");
+                Row("Depth", app.FurnitureDimensions.z, y - 130, "depth");
+                if (selection == null) ToolkitVisuals.Text(panel.transform, new Vector2(550, 60), new Vector2(0, y - 210), (app.DwellInput ? "Dwell to place or pick up; dwell again to drop." : app.HandsInput ? "Pinch floor to place. Pinch a box and drag." : "Trigger on floor to place. Grip to move.") + "\nBlocked placements show an overlap warning.", 21, Color.white);
             }
             else if (app.Tool == ToolkitTool.Hang)
             {
-                Row("Frame width", app.Preferences.frame.x, y, "framewidth");
-                Row("Frame height", app.Preferences.frame.y, y - 58, "frameheight");
-                Row("Gap", app.Preferences.gap, y - 116, "gap");
-                Row("Hanger below top", app.Preferences.inset, y - 174, "inset");
+                Row("Frame width", app.FrameDimensions.x, y, "framewidth");
+                Row("Frame height", app.FrameDimensions.y, y - 58, "frameheight");
+                Row("Gap", app.FrameGap, y - 116, "gap");
+                Row("Hanger below top", app.FrameInset, y - 174, "inset");
                 Button(panel.transform, new Vector2(-240, y - 232), new Vector2(60, 48), "−", "count:-1");
-                ToolkitVisuals.Text(panel.transform, new Vector2(350, 48), new Vector2(0, y - 232), app.Preferences.frameCount + " equal frames", 24, Color.white);
+                ToolkitVisuals.Text(panel.transform, new Vector2(350, 48), new Vector2(0, y - 232), app.FrameCount + " equal frames", 24, Color.white);
                 Button(panel.transform, new Vector2(240, y - 232), new Vector2(60, 48), "+", "count:1");
             }
             else
@@ -137,6 +147,10 @@ namespace SpatialToolkit
                 ToolkitVisuals.Text(panel.transform, new Vector2(550, 120), new Vector2(0, y - 15), "Place wall nodes to measure line angles.\nDouble-press or select a node to finish.\nThe grid and line angles follow gravity.", 24, Color.white);
                 Button(panel.transform, new Vector2(0, y - 115), new Vector2(260, 48), "Finish path", "finish");
                 ToolkitVisuals.Text(panel.transform, new Vector2(550, 70), new Vector2(0, y - 185), "The grid follows gravity.\nThe app does not track the physical object.", 21, ToolkitVisuals.Lavender);
+            }
+            if (selection != null && !SpatialToolkitApp.IsPath(selection))
+            {
+                Button(panel.transform, new Vector2(0, app.Tool == ToolkitTool.Fit ? -105 : -112), new Vector2(260, app.Tool == ToolkitTool.Fit ? 40 : 32), "Delete", "delete");
             }
             Button(panel.transform, new Vector2(-190, -155), new Vector2(175, 50), "Undo", "undo");
             Button(panel.transform, new Vector2(0, -155), new Vector2(175, 50), app.Preferences.imperial ? "Feet / inches" : "Meters", "units");
@@ -147,6 +161,12 @@ namespace SpatialToolkit
             Button(panel.transform, new Vector2(-140, -285), new Vector2(265, 55), "Take snapshot", "snapshot", ToolkitVisuals.Lavender);
             Button(panel.transform, new Vector2(145, -285), new Vector2(265, 55), "Controls", "controls");
             status = ToolkitVisuals.Text(panel.transform, new Vector2(560, 65), new Vector2(0, -350), app.Status, 21, ToolkitVisuals.Mint);
+        }
+        void BuildPathEdit(Transform panel)
+        {
+            ToolkitVisuals.Text(panel, new Vector2(540, 65), new Vector2(0, 120), "Node " + (app.SelectedNode + 1) + " selected\nHold and move to adjust its position.", 24, Color.white);
+            Button(panel, new Vector2(-140, 15), new Vector2(260, 58), app.SelectedPathActive ? "Finish path" : "Start new path", app.SelectedPathActive ? "finish" : "startpath");
+            Button(panel, new Vector2(140, 15), new Vector2(260, 58), "Delete", "delete");
         }
         void BuildPill(Transform panel, RectTransform rect)
         {
@@ -293,14 +313,18 @@ namespace SpatialToolkit
         public void UpdatePose(ToolInput input, Transform head)
         {
             if (!canvas) return;
-            if (inputSource != input.Source) { inputSource = input.Source; if (input.SourceChanged) fallbackPlaced = false; Rebuild(); }
+            if (inputSource != input.Source) { inputSource = input.Source; Rebuild(); }
+            if (input.PaletteTracked) { wristLastSeen = Time.unscaledTime; lastWristUp = input.PaletteUp; }
+            bool wristGrace = AttachedToWrist && !input.PaletteTracked && Time.unscaledTime - wristLastSeen < 0.7f && !input.Dwell;
             if (input.PinMenu && input.PaletteTracked && !app.Preferences.wristGestureDisabled) pinned = !pinned;
-            bool reveal = app.Preferences.wristGestureDisabled || pinned || !input.PaletteTracked || input.Dwell || controls || settings || about || Vector3.Dot(input.PaletteUp, Vector3.up) > 0.35f;
+            bool wrist = !pinned && !app.Preferences.wristGestureDisabled && !input.Dwell && (input.PaletteTracked || wristGrace);
+            AttachedToWrist = wrist;
+            bool reveal = !wrist || controls || settings || about || Vector3.Dot(wristGrace ? lastWristUp : input.PaletteUp, Vector3.up) > 0.35f;
             canvas.gameObject.SetActive(reveal);
-            if (!pinned && head)
+            canvas.transform.localScale = Vector3.one * (wrist ? 0.00048f : 0.0006f);
+            if (wristGrace) { if (status) status.text = app.Status; return; }
+            if (!pinned && head && !menuPending && !menuDragging)
             {
-                bool wrist = input.PaletteTracked && !input.Dwell && !app.Preferences.wristGestureDisabled;
-                canvas.transform.localScale = Vector3.one * (wrist ? 0.00048f : 0.0006f);
                 if (!wrist && fallbackPlaced && Vector3.Distance(transform.position, head.position) < 1.8f) { if (status) status.text = app.Status; return; }
                 Vector3 target = wrist ? input.PalettePosition + Vector3.up * 0.25f + (input.PalettePosition - head.position).normalized * 0.10f :
                     head.position + head.forward * 0.8f + head.right * (input.MenuOnly ? 0 : -0.32f);

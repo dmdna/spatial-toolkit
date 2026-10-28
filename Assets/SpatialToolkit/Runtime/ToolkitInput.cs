@@ -10,7 +10,9 @@ namespace SpatialToolkit
     {
         public Ray Ray;
         public bool Tracked, TriggerHeld, TriggerDown, GripDown, GripUp, GripHeld, Undo, ToggleSnap, PinMenu;
-        public bool Gesture, Dwell, MenuOnly, SourceChanged, PinchHeld, AlignmentTracked;
+        public bool VisualOriginTracked;
+        public Vector3 VisualRayOrigin;
+        public bool Gesture, HandRay, Dwell, MenuOnly, SourceChanged, PinchHeld, AlignmentTracked;
         public float DepthDelta;
         public Vector3 Position, Up, Forward, AlignmentForward, PalettePosition, PaletteUp;
         public Quaternion Rotation, PaletteRotation;
@@ -108,7 +110,7 @@ namespace SpatialToolkit
             state.GripDown = grip && !previousGrip;
             state.GripUp = !grip && previousGrip;
             state.GripHeld = grip;
-            // Capture gaze on pinch. Looking elsewhere cannot move a held item.
+            // Capture the pointing direction on pinch. Wrist rotation remains available for object rotation.
             if (state.Gesture && !state.Dwell)
             {
                 if (state.TriggerDown) { heldRay = state.Ray; heldPosition = state.Position; }

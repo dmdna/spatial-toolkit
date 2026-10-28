@@ -10,7 +10,7 @@ using UnityEngine.XR;
 namespace SpatialToolkit
 {
     [DefaultExecutionOrder(-100)]
-    public sealed class SpatialToolkitApp : MonoBehaviour
+    public sealed partial class SpatialToolkitApp : MonoBehaviour
     {
         public Transform TrackingOrigin;
         public Camera ViewCamera;
@@ -88,6 +88,7 @@ namespace SpatialToolkit
             pointer.useWorldSpace = true;
             pointer.GetComponent<ToolkitReadableLine>().enabled = false;
             reticle = ToolkitVisuals.Sphere(pointerRoot.transform, Vector3.zero, 0.014f, ToolkitVisuals.Mint).transform;
+            ToolkitVisuals.PointerOverlay(pointer.transform); ToolkitVisuals.PointerOverlay(reticle);
             previewLine = ToolkitVisuals.Line(pointerRoot.transform, new[] { Vector3.zero, Vector3.zero }, ToolkitVisuals.Mint);
             previewLine.useWorldSpace = true;
             liveReadout = ToolkitVisuals.Label(pointerRoot.transform, Vector3.zero, "", Color.white);
@@ -107,7 +108,7 @@ namespace SpatialToolkit
         void CancelGrab(bool resetDwell = true)
         {
             if (grabbed) { Session = JsonUtility.FromJson<ToolkitSession>(beforeGrab); grabbed = null; RenderAll(); }
-            CancelUndoHold(); lastNodePress = -10;
+            CancelUndoHold(); pendingGrab = null; if (palette) palette.CancelMenuDrag(); lastNodePress = -10;
             if (resetDwell) dwell.Reset();
         }
 
@@ -139,7 +140,7 @@ namespace SpatialToolkit
             menuBlocked = menuHit;
             // Snapping changes placement only; the displayed ray always follows the input direction.
             Vector3 rayEnd = menuHit ? menuPoint : state.Ray.GetPoint(Vector3.Dot(target - state.Ray.origin, state.Ray.direction));
-            pointer.SetPosition(0, state.Ray.origin); pointer.SetPosition(1, rayEnd);
+            pointer.SetPosition(0, state.VisualOriginTracked ? state.VisualRayOrigin : state.Ray.origin); pointer.SetPosition(1, rayEnd);
             reticle.position = rayEnd;
             var color = !validSurface ? new Color(0.65f, 0.7f, 0.76f) : ToolColor();
             reticle.GetComponent<Renderer>().sharedMaterial.color = color;
@@ -149,7 +150,13 @@ namespace SpatialToolkit
             var handle = FindHandle();
             palette.Highlight(menuHit && action.Action != "block" && action.Action != "expand" ? action : null, state.Dwell ? dwell.Progress : 0);
             UpdateUndoHold(menuHit ? action : null);
-            bool select = state.TriggerDown;
+            bool menuDragConsumed = !busy && palette.HandleMenuDrag(state, menuHit ? action : null, menuPoint, ViewCamera.transform);
+            if (palette.Dragging)
+            {
+                pointer.SetPosition(1, palette.DragPoint); reticle.position = palette.DragPoint;
+                menuBlocked = true;
+            }
+            bool select = state.TriggerDown && !menuDragConsumed;
             if (state.Dwell)
             {
                 string focus = busy ? null : menuHit ? (action.Action == "block" ? null : "menu:" + action.Action) : state.MenuOnly || !platform.IsLocalized ? null :
@@ -159,6 +166,7 @@ namespace SpatialToolkit
                 state.GripUp = select && grabbed && !menuHit;
             }
             else dwell.Reset();
+            if (menuDragConsumed) select = false;
             reticle.localScale = Vector3.one * (0.014f + (state.Dwell ? dwell.Progress * 0.014f : 0));
             if (select && menuHit)
             {
@@ -166,16 +174,18 @@ namespace SpatialToolkit
                 if (grabbed) CancelGrab(false);
                 if (action.Action == "undo" && !state.Dwell)
                 {
-                    UndoAction(); undoHeldSince = Time.unscaledTime; undoHoldFired = false; undoHoldButton = action;
+                    UndoAction(); undoHeldSince = Time.unscaledTime; undoHoldFired = false;
+                    undoHoldButton = palette.GetComponentsInChildren<ToolkitPaletteAction>().FirstOrDefault(a => a.Action == "undo");
                 }
                 else Dispatch(action.Action);
             }
             else if (select && !grabbed && !busy && platform.IsLocalized)
             {
-                if (PathTool && TryFinishAtNode(handle)) { }
-                else if (state.Gesture && handle && !(Tool == ToolkitTool.Level && Session.items.Any(i => i.id == handle.ItemId && i.kind == ToolkitItemKind.Level)))
+                if (PathTool && TryNodeAction(handle)) { }
+                else if (handle)
                 {
-                    BeginGrab();
+                    SelectHandle(handle, state.Gesture && !state.Dwell);
+                    if (state.Dwell) BeginGrabHandle(handle);
                 }
                 else
                 {
@@ -188,7 +198,8 @@ namespace SpatialToolkit
                     }
                 }
             }
-            if (!state.Gesture && state.GripDown && !menuHit && !busy && platform.IsLocalized) BeginGrab();
+            UpdatePendingGrab(menuHit || menuDragConsumed);
+            if (!state.Gesture && state.GripDown && !menuDragConsumed && !menuHit && !busy && platform.IsLocalized) BeginGrab();
             if (grabbed && menuHit && state.GripUp) { CancelGrab(); Message("Move cancelled over the menu."); }
             if (grabbed && !menuHit) UpdateGrab();
             UpdatePreview();
@@ -205,6 +216,8 @@ namespace SpatialToolkit
             foreach (var hit in Physics.RaycastAll(state.Ray, reach, ~0, QueryTriggerInteraction.Ignore))
             {
                 var candidate = hit.collider.GetComponent<ToolkitHandle>();
+                if (candidate && Tool == ToolkitTool.Level && activePath != null && candidate.Node < 0 &&
+                    Session.items.Any(i => i.id == candidate.ItemId && i.kind == ToolkitItemKind.Level)) continue;
                 if (candidate && hit.distance < distance) { nearest = candidate; distance = hit.distance; }
             }
             return nearest;
@@ -250,6 +263,7 @@ namespace SpatialToolkit
         {
             if (!validSurface) { Message("Find a mapped wall or floor before placing."); return; }
             if (Session.items.Count >= 100) { Message("This room has 100 items. Delete an item to add another."); return; }
+            if (Selection != null) ClearSelection(false);
             if (Session.items.Count == 0) RoomRoot.position = target;
             if (PathTool)
             {
@@ -267,8 +281,9 @@ namespace SpatialToolkit
                     if (Tool == ToolkitTool.Level)
                     {
                         ToolkitGeometry.SurfaceBasis(targetNormal, out _, out var up);
-                        Session.items.Add(new ToolkitItemData { kind = ToolkitItemKind.Level,
-                            position = RoomRoot.InverseTransformPoint(target), rotation = Quaternion.Inverse(RoomRoot.rotation) * Quaternion.LookRotation(targetNormal, up) });
+                        var grid = new ToolkitItemData { kind = ToolkitItemKind.Level,
+                            position = RoomRoot.InverseTransformPoint(target), rotation = Quaternion.Inverse(RoomRoot.rotation) * Quaternion.LookRotation(targetNormal, up) };
+                        Session.items.Add(grid); path.gridId = grid.id;
                     }
                     Session.items.Add(path); activePath = path.id;
                 }
@@ -294,14 +309,14 @@ namespace SpatialToolkit
                     dimensions = Preferences.frame, count = Preferences.frameCount, gap = Preferences.gap, inset = Preferences.inset });
                 Message(Tool == ToolkitTool.Hang ? "Layout placed. Nail marks use your hanger inset." : "Level grid placed. Compare an edge with the grid.");
             }
-            Haptic(); RenderAll();
+            Haptic(); RenderAll(); palette.Rebuild();
         }
 
         public void Dispatch(string command)
         {
             if (busy || captureBusy) return;
             var parts = command.Split(':'); var key = parts[0];
-            if (key == "block") return;
+            if (key == "block" || key == "dragmenu") return;
             if (key == "settings" || key == "about" || key == "main" || key == "minimize" || key == "expand") { CancelUndoHold(); palette.Navigate(key); return; }
             if (key == "num") { palette.NumericKey(parts[1]); return; }
             if (key == "edit") { palette.BeginNumeric(parts[1], GetDimension(parts[1])); return; }
@@ -309,9 +324,11 @@ namespace SpatialToolkit
             if (key == "pin") { palette.TogglePin(); return; }
             float step = Preferences.imperial ? 0.0127f : 0.01f;
             int direction = parts.Length > 1 ? int.Parse(parts[1]) : 0;
+            if (DispatchSelectionEdit(key, direction, step)) { palette.Rebuild(); return; }
             switch (key)
             {
-                case "tool": Tool = (ToolkitTool)direction; FinishPath(); hasHangPreviewPose = false; break;
+                case "startpath": StartPathAtSelection(); return;
+                case "tool": ClearSelection(false); Tool = (ToolkitTool)direction; FinishPath(); hasHangPreviewPose = false; break;
                 case "wrist": Preferences.wristGestureDisabled = !Preferences.wristGestureDisabled; palette.ResetWristPose(); break;
                 case "colors": Preferences.colorOption = (Preferences.colorOption + direction + 3) % 3; ApplyColors(); break;
                 case "snap": Snapping = !Snapping; Message(Snapping ? "Snapping on." : "Snapping off."); break;
@@ -349,10 +366,8 @@ namespace SpatialToolkit
             var item = Session.items.Find(i => i.id == selectedId);
             if (item == null) { Message("Select an item first: pinch it and release, or dwell on it."); return; }
             Remember();
-            if (IsPath(item) && selectedNode >= 0 && selectedNode < item.points.Count)
-            { item.points.RemoveAt(selectedNode); item.closed = false; if (item.points.Count == 0) Session.items.Remove(item); }
-            else Session.items.Remove(item);
-            selectedId = null; selectedNode = -1; RenderAll(); Message("Deleted. Undo brings it back.");
+            RemoveNodeOrItem(item, selectedNode);
+            ClearSelection(false); RenderAll(); palette.Rebuild(); Message("Deleted. Undo brings it back.");
         }
 
         void RotateSelection(float degrees)
@@ -368,21 +383,23 @@ namespace SpatialToolkit
         {
             switch (key)
             {
-                case "width": return Preferences.furniture.x;
-                case "height": return Preferences.furniture.y;
-                case "depth": return Preferences.furniture.z;
-                case "framewidth": return Preferences.frame.x;
-                case "frameheight": return Preferences.frame.y;
-                case "gap": return Preferences.gap;
-                default: return Preferences.inset;
+                case "width": return FurnitureDimensions.x;
+                case "height": return FurnitureDimensions.y;
+                case "depth": return FurnitureDimensions.z;
+                case "framewidth": return FrameDimensions.x;
+                case "frameheight": return FrameDimensions.y;
+                case "gap": return FrameGap;
+                default: return FrameInset;
             }
         }
         public bool SetDimension(string key, float meters)
         {
             float min = key == "gap" || key == "inset" ? 0 : 0.05f;
-            float max = key == "gap" ? 1 : key == "inset" ? Preferences.frame.y : key.StartsWith("frame") ? 3 : key == "height" ? 5 : 10;
+            float max = key == "gap" ? 1 : key == "inset" ? FrameDimensions.y : key.StartsWith("frame") ? 3 : key == "height" ? 5 : 10;
             if (float.IsNaN(meters) || float.IsInfinity(meters) || meters < min || meters > max)
             { Message("Enter a value between " + ToolkitGeometry.Distance(min, Preferences.imperial) + " and " + ToolkitGeometry.Distance(max, Preferences.imperial) + "."); return false; }
+            if (Selection != null && (Selection.kind == ToolkitItemKind.Furniture || Selection.kind == ToolkitItemKind.Frames))
+                return EditSelectedDimension(key, meters);
             switch (key)
             {
                 case "width": Preferences.furniture.x = meters; break;
@@ -409,7 +426,7 @@ namespace SpatialToolkit
         }
         void FinishPath()
         {
-            activePath = null; lastNodePress = -10; Message("Path finished. Select a surface to start a new measurement.");
+            activePath = null; lastNodePress = -10; palette.Rebuild(); Message("Path finished. Select a surface to start a new measurement.");
         }
         void Remember()
         {
@@ -422,19 +439,21 @@ namespace SpatialToolkit
             var last = Session.items.LastOrDefault();
             activePath = IsPath(last) && !last.closed &&
                 (Tool == ToolkitTool.Measure && last.kind == ToolkitItemKind.Measurement || Tool == ToolkitTool.Level && last.kind == ToolkitItemKind.AnglePath) ? last.id : null;
-            RenderAll(); lastNodePress = -10; Message("Undone. Hold the button to Clear All.");
+            if (Selection == null) { selectedId = null; selectedNode = -1; }
+            else if (IsPath(Selection)) selectedNode = Mathf.Clamp(selectedNode, 0, Selection.points.Count - 1);
+            RenderAll(); palette.Rebuild(); lastNodePress = -10; Message("Undone. Hold the button to Clear All.");
         }
 
-        void BeginGrab()
+        void BeginGrab() { BeginGrabHandle(FindHandle()); }
+        void BeginGrabHandle(ToolkitHandle handle)
         {
-            float distance = float.MaxValue;
-            foreach (var hit in Physics.RaycastAll(state.Ray, reach, ~0, QueryTriggerInteraction.Ignore))
-            {
-                var handle = hit.collider.GetComponent<ToolkitHandle>();
-                if (handle && hit.distance < distance) { grabbed = handle; distance = hit.distance; }
-            }
-            if (!grabbed) return;
-            selectedId = grabbed.ItemId; selectedNode = grabbed.Node;
+            if (!handle) return;
+            SelectHandle(handle, false);
+            var linked = Session.items.Find(i => i.kind == ToolkitItemKind.Level && i.id == handle.ItemId);
+            if (linked != null && Selection != null && Selection.kind == ToolkitItemKind.AnglePath)
+                handle = visuals[Selection.id].GetComponentsInChildren<ToolkitHandle>().First(h => h.Node == 0);
+            grabbed = handle;
+            float distance = Mathf.Max(0.05f, Vector3.Dot(handle.transform.position - state.Ray.origin, state.Ray.direction));
             beforeGrab = JsonUtility.ToJson(Session); grabDepth = distance; throwVelocity = Vector3.zero;
             grabYaw = Mathf.Atan2(state.Forward.x, state.Forward.z) * Mathf.Rad2Deg;
             var item = Session.items.Find(i => i.id == grabbed.ItemId);
@@ -450,7 +469,15 @@ namespace SpatialToolkit
             bool behind = Vector3.Dot(point - ViewCamera.transform.position, ViewCamera.transform.forward) < -0.15f;
             throwVelocity = Vector3.Lerp(throwVelocity, (point - previousGrabPosition) / Mathf.Max(Time.unscaledDeltaTime, 0.001f), 0.35f);
             previousGrabPosition = point;
-            if (IsPath(item) && node >= 0) item.points[node] = RoomRoot.InverseTransformPoint(point);
+            if (IsPath(item) && node >= 0)
+            {
+                item.points[node] = RoomRoot.InverseTransformPoint(point);
+                if (node == 0 && item.kind == ToolkitItemKind.AnglePath)
+                {
+                    var grid = Session.items.Find(i => i.id == item.gridId);
+                    if (grid != null) grid.position = item.points[0];
+                }
+            }
             else
             {
                 if (item.kind == ToolkitItemKind.Furniture)
@@ -480,19 +507,14 @@ namespace SpatialToolkit
                 bool remove = behind && throwVelocity.magnitude > 1.1f;
                 if (remove)
                 {
-                    if (IsPath(item) && node >= 0)
-                    {
-                        item.points.RemoveAt(node); item.closed = false;
-                        if (item.points.Count == 0) Session.items.Remove(item);
-                    }
-                    else Session.items.Remove(item);
+                    RemoveNodeOrItem(item, node); ClearSelection(false);
                     undo.Add(beforeGrab); Message("Deleted. Undo brings it back.");
                 }
                 else if (!acceptable || blocked)
                 { Session = JsonUtility.FromJson<ToolkitSession>(beforeGrab); Message("Move cancelled. Choose a clear mapped surface."); }
                 else { undo.Add(beforeGrab); Message("Placed."); }
                 if (undo.Count > 50) undo.RemoveAt(0);
-                grabbed = null; RenderAll(); return;
+                grabbed = null; RenderAll(); palette.Rebuild(); return;
             }
             RefreshMovedItem(item, blocked);
         }
@@ -500,6 +522,8 @@ namespace SpatialToolkit
         void RefreshMovedItem(ToolkitItemData item, bool blocked)
         {
             var root = visuals[item.id];
+            if (item.kind == ToolkitItemKind.AnglePath && visuals.TryGetValue(item.gridId ?? "", out var gridVisual))
+                gridVisual.transform.localPosition = item.points[0];
             if (!IsPath(item))
             {
                 root.transform.localPosition = item.position; root.transform.localRotation = item.rotation;
@@ -548,7 +572,7 @@ namespace SpatialToolkit
         void RenderAll()
         {
             foreach (var root in visuals.Values) if (root) { root.SetActive(false); Destroy(root); }
-            visuals.Clear(); levelReadout = null;
+            visuals.Clear(); levelReadout = null; EnsureLevelLinks();
             foreach (var item in Session.items) RenderItem(item);
         }
         void RenderItem(ToolkitItemData item, bool blocked = false)
@@ -620,7 +644,7 @@ namespace SpatialToolkit
         void UpdatePreview()
         {
             var path = Session.items.Find(i => i.id == activePath);
-            bool live = PathTool && path != null && path.points.Count > 0 && validSurface && !grabbed && !menuBlocked;
+            bool live = PathTool && path != null && path.points.Count > 0 && validSurface && !grabbed && !menuBlocked && Selection == null;
             previewLine.gameObject.SetActive(live); liveReadout.transform.parent.gameObject.SetActive(live);
             if (live)
             {
@@ -629,7 +653,7 @@ namespace SpatialToolkit
                 liveReadout.transform.parent.position = (last + target) * 0.5f + Vector3.up * 0.06f;
                 liveReadout.text = SegmentText(RoomRoot.InverseTransformPoint(last), RoomRoot.InverseTransformPoint(target), Tool == ToolkitTool.Level);
             }
-            bool fit = Tool == ToolkitTool.Fit && validSurface && targetNormal.y > 0.8f && !grabbed && !menuBlocked;
+            bool fit = Tool == ToolkitTool.Fit && validSurface && targetNormal.y > 0.8f && !grabbed && !menuBlocked && Selection == null;
             if (fit && !fitPreview)
             {
                 fitPreview = new GameObject("Furniture preview", typeof(ToolkitOwned), typeof(ToolkitMaterialCleanup));
@@ -675,7 +699,7 @@ namespace SpatialToolkit
         {
             if (Tool == ToolkitTool.Hang && !grabbed && !menuBlocked && validSurface && Mathf.Abs(targetNormal.y) <= 0.3f)
             { hangPreviewPosition = target; hangPreviewNormal = targetNormal; hasHangPreviewPose = true; }
-            bool visible = Tool == ToolkitTool.Hang && !grabbed && hasHangPreviewPose && (menuBlocked || validSurface && Mathf.Abs(targetNormal.y) <= 0.3f);
+            bool visible = Selection == null && Tool == ToolkitTool.Hang && !grabbed && hasHangPreviewPose && (menuBlocked || validSurface && Mathf.Abs(targetNormal.y) <= 0.3f);
             bool changed = hangPreviewFrame != Preferences.frame || hangPreviewCount != Preferences.frameCount ||
                 hangPreviewGap != Preferences.gap || hangPreviewInset != Preferences.inset || hangPreviewOption != Preferences.colorOption;
             if (visible && (!hangPreview || changed))
@@ -692,18 +716,6 @@ namespace SpatialToolkit
                 ToolkitGeometry.SurfaceBasis(hangPreviewNormal, out _, out var up);
                 hangPreview.transform.SetPositionAndRotation(hangPreviewPosition, Quaternion.LookRotation(hangPreviewNormal, up));
             }
-        }
-        bool TryFinishAtNode(ToolkitHandle handle)
-        {
-            var path = Session.items.Find(i => i.id == activePath);
-            if (!IsPath(path) || path.points.Count == 0) return false;
-            // With snap enabled the surface target coincides with an existing node.
-            // Free placement uses only the visible node's collider radius.
-            bool existing = handle && handle.Node >= 0 && Session.items.Any(i => i.id == handle.ItemId && IsPath(i));
-            if (!existing && Snapping && validSurface)
-                existing = Session.items.Where(IsPath).Any(i => i.points.Any(p => Vector3.Distance(RoomRoot.TransformPoint(p), target) < 0.001f));
-            if (!existing) return false;
-            FinishPath(); return true;
         }
         void CancelUndoHold()
         {
@@ -727,8 +739,8 @@ namespace SpatialToolkit
         public void ClearAll()
         {
             if (busy || captureBusy || grabbed || Session.items.Count == 0) return;
-            Remember(); Session.items.Clear(); activePath = selectedId = null; selectedNode = -1;
-            lastNodePress = -10; hasHangPreviewPose = false; RenderAll(); Haptic();
+            Remember(); pendingGrab = null; Session.items.Clear(); activePath = selectedId = null; selectedNode = -1;
+            lastNodePress = -10; hasHangPreviewPose = false; RenderAll(); palette.Rebuild(); Haptic();
             Message("All nodes and measurements cleared. Undo brings them back.");
         }
         void ApplyColors()
@@ -776,7 +788,7 @@ namespace SpatialToolkit
                 if (!Application.isEditor && saved.simulated) { Message("This is an editor-only room. Create a room on your headset."); return; }
                 if (!await platform.RestoreAnchor(saved.anchorUuid, RoomRoot)) return;
                 if (saved.simulated) RoomRoot.SetPositionAndRotation(saved.previewOrigin, saved.previewRotation);
-                undo.Clear(); Session = saved; activePath = null; RenderAll(); Message("Saved room restored.");
+                undo.Clear(); Session = saved; activePath = null; ClearSelection(false); RenderAll(); palette.Rebuild(); Message("Saved room restored.");
             }
             catch (Exception e) { Message("Saved room could not be loaded."); Debug.LogException(e); }
             finally { busy = false; }

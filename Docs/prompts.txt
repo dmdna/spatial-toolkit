@@ -77,7 +77,7 @@ For all of these changes, use as much of the already-implemented code as possibl
 Fifth Prompt (after successful changes):
 
 Those changes were successful! I need a few fixes:
-* in Measure, placing a node on another node to Finish path was only meant to work for the same node or the previous node. If it is any other node that already exists and the selection could close a valid area, it should behave as Close Area on the selected node. Right now, placing a measurement node on another node that is not itself or the previous SHOULD behave as Close area, but it behaves as Finish path instead.
+* in Measure, placing a node on another node to Finish path was only meant to work for the same node or the previous node. If it is any other node that already exists and the selection could close a valid area, it should behave as Close Area on the selected node. Right now, placing a measurement node on another node that is not itself or the previous SHOULD behave as Close area, but it behaves as Finish path instead. Fix this.
 * The ray indicators coming from the hands should appear OVER the UI menu. Since the first colors were transluscent, this wasn't a problem before. But now the high contrast completely blocks the ray and dot indicators. It is still a little bit usable because the buttons highlight, but the fact that the ray and dot indicators are behind the menus is disruptive. Have these indicators always appear over the UI menus.
 * Is it possible to have those same ray/dot indicators point in the direction based on the hand/wrist position in the case of hand controls? Right now I am not sure how it calculates which direction to point at, but it is currently pointing at an angle such that using the menu with the wristwatch Gesture option enabled sometimes causes the selecting hand to cover the other hand from view, which causes the UI to jitter slightly and sometimes it even loses the hand detecton completely and snaps the menu to float in the room. Ideally, I would have finer control of where the hand control ray indicators are pointing by changing the angle of my hand at my wrist. If it's possible, fix that. If not, implement the next best fix.
 * Add a new feature where the user may grab the Menu when it is floating in the room (not when it is attached to the wrist). Use the appropriate controls (grab/grip button or whatever you decide is best). Make sure they can do this with the pill-shaped minimized menu by grabbing the background that will normally open the full menu (single pinch on this area should remain unchanged i.e. it should still open the full menu). For the full menu, make a margin on the top edge of the window selectable to drag and move in the floating space.
@@ -87,6 +87,22 @@ Those changes were successful! I need a few fixes:
 		2. a "Delete" button: deletes the current node, which opens any area that is closed by that node. (this replaces the Close area button)
 	* when a Level node is selected: the same 2 buttons as Measure should appear. If a non-gridded node remains floating after deletion, connect it to the node previous to the deleted node in the sequence so that there are no floating nodes. If the gridded node is deleted, delete all the nodes attached to it
 	* when a Fit Check box is selected, keep the measurement controls and make sure they display the measurements of the current selection (meaning that if a box was placed and then they were changed and a different size box was placed, selecting the original box will show the measurement edit controls with the measurements of the selected box). Changing these controls during selection will change the measurements of the fit check box in real time. A delete button should also  be there.
-	* when a Hang measurement is selected, same thing: a delete button and the measurement controls now serve to edit the selection in real time.
+	* when a Hang measurement is selected, same thing as Fit check: a delete button and the measurement controls now serve to edit the selection in real time.
 	
 Make these changes, then build and open on the connected headset
+
+Sixth prompt (hand controls bugged):
+
+This mostly worked, just need to fix some major bugs:
+
+The new hand controls are harder to use and the previous ones were better. It allowed me to twist my arm as I was holding a box to rotate it, and this one doesn't because the wrist twist will change its translation too much. Revert back to the way it was, but align the ray and dot indicator better so that it feels as similar as possible as how a Meta Quest is controlled (in that system pointing the indicators to the UI feels natural). Also, when dragging the menu around the space, make sure it is anchored to the selection dot at the point of grab (also make the bar to select the menu to drag it around from the top border a little shorter, it is too close to the corner buttons.
+
+Then push, build, and open as usual (if i am not mistaken since it's a hotfix this should be 0.3.1?).
+
+Seventh Prompt (more bug fixes):
+
+That works! Some more bug fixes:
+
+* When using head or eyes (gaze), get rid of the ray indicator and only keep the dot.
+* Make the selections (nodes, boxes, etc.) visible. Use either a highlight or an outline or make it a different color that visually indicates it is selected.
+* It's ok to fallback to the opposite hand if one is unavailable, but sometimes both hands become available again and it will remain on the hand. I want it so that when both hands are available, it automatically switches the main hand to the one selected on the Menu.

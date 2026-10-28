@@ -25,6 +25,16 @@ namespace SpatialToolkit
             if (!shader) shader = Shader.Find("Universal Render Pipeline/Unlit");
             return new Material(shader) { name = "Spatial Toolkit runtime overlay", color = color, enableInstancing = true };
         }
+        public static void PointerOverlay(Transform root)
+        {
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                renderer.sortingOrder += 1000;
+                renderer.sharedMaterial.renderQueue = 4100;
+                if (renderer.sharedMaterial.HasProperty("_ZTest"))
+                    renderer.sharedMaterial.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.Always);
+            }
+        }
         public static LineRenderer Line(Transform parent, IReadOnlyList<Vector3> positions, Color color, float width = 0.002f, bool loop = false)
         {
             var go = new GameObject("Guide line"); go.transform.SetParent(parent, false);
