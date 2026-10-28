@@ -21,10 +21,11 @@ namespace SpatialToolkit
         void ClearSelection(bool rebuild = true)
         {
             pendingGrab = null; selectedId = null; selectedNode = -1;
+            RefreshSelectionFeedback();
             if (rebuild) { RenderAll(); palette.Rebuild(); }
         }
 
-        ToolkitItemData GridPath(string grid) => Session.items.Find(i => i.kind == ToolkitItemKind.AnglePath && i.gridId == grid);
+        ToolkitItemData GridPath(string grid) => string.IsNullOrEmpty(grid) ? null : Session.items.Find(i => i.kind == ToolkitItemKind.AnglePath && i.gridId == grid);
 
         void EnsureLevelLinks()
         {
@@ -49,7 +50,7 @@ namespace SpatialToolkit
             if (activePath != null && activePath != selectedId) activePath = null;
             pendingGrab = armDrag ? handle : null; pendingGrabAt = Time.unscaledTime; pendingGrabPosition = state.Position;
             // Keep the selected handle alive so a sustained pinch can become a drag.
-            palette.Rebuild(); Message("Selected. Edit in the menu, or hold and move to drag.");
+            RefreshSelectionFeedback(); palette.Rebuild(); Message("Selected. Edit in the menu, or hold and move to drag.");
         }
 
         void UpdatePendingGrab(bool blockedByMenu)

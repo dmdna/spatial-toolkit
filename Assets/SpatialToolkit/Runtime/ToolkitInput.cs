@@ -12,7 +12,7 @@ namespace SpatialToolkit
         public bool Tracked, TriggerHeld, TriggerDown, GripDown, GripUp, GripHeld, Undo, ToggleSnap, PinMenu;
         public bool VisualOriginTracked;
         public Vector3 VisualRayOrigin;
-        public bool Gesture, HandRay, Dwell, MenuOnly, SourceChanged, PinchHeld, AlignmentTracked;
+        public bool Gesture, HandRay, Gaze, Dwell, MenuOnly, SourceChanged, PinchHeld, AlignmentTracked;
         public float DepthDelta;
         public Vector3 Position, Up, Forward, AlignmentForward, PalettePosition, PaletteUp;
         public Quaternion Rotation, PaletteRotation;

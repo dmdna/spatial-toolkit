@@ -313,3 +313,47 @@ were verified. The sampled app-process startup logs contained no Unity or
 AndroidRuntime errors. Actual hand-control feel remains a headset acceptance
 check for the user. Existing SDK build warnings remain.
 
+
+ROOM AND FEEDBACK PATCH (0.3.2)
+
+The menu faces the player in pinned, wrist, fallback and dragging states with
+world-up orientation (no roll). Dragging retains its exact cursor anchor while
+updating that upright orientation. Eye/head aiming and dwell show a dot only;
+hand/controller pointing retains both the ray and dot.
+
+Selections share one accent per preset across Measure/Level nodes, Fit and
+Hang. Selected items change tint; hover adds an accent outline (node halos
+or bounding edges). Node hit colliders are 1.5 times the visible radius,
+without changing the physical node size or the snap grid. Nearby node targets
+win over the level grid's background collider. Hand tracking immediately
+returns to the menu's preferred hand once that hand is tracked again; held
+input must be released after the input-source change.
+
+A physical press on Load room loads on release. Holding uses the same
+0.45-second grace and 1.2-second fill as Undo. The label changes to Delete
+Room (Hold), with a status hint and cancellation on aim/focus/tracking loss.
+Completion deletes the saved room file, backup and temp file, and unpersists
+their PICO anchors. Current live measurements remain in the workspace.
+
+The workspace coordinate frame is initialized once and is not rebased when
+its geometry becomes empty. Saving an active path rebuilds its visuals.
+Clear All detaches the live anchor, restores root visibility, clears transient
+path/selection state even if already empty, and removes orphaned visuals.
+It preserves the saved room file. This prevents a new first node from being
+placed in a frame that the saved anchor moves underneath it.
+
+New regression suite: PICO > Spatial Toolkit > Run Room and Selection Feedback
+Checks. Report: .tools/checks/toolkit-room-feedback.txt. Saves/deletes in this
+suite use an isolated verification directory.
+
+Verification for 0.3.2: 192 automated checks passed (43 room/feedback,
+28 input, 18 geometry, 14 hand/menu hotfix, 42 selection/drag,
+33 menu/path and 14 interactive placement/save/restore). Editor and Android
+C# compilation passed. Camera inspection confirmed upright UI, visible ray
+over opaque menus and the shared selection tint/outline in Option 3.
+Headset gesture acceptance remains a device test after installation.
+
+Android build succeeded: 0.3.2, version code 5. Installed and cold-launched
+on PB311XKGL4200005G. Confirmed installed version, running process and resumed
+foreground activity; no Unity or AndroidRuntime errors in the startup sample.
+No version-control operations were performed for this patch.

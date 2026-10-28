@@ -8,6 +8,8 @@ namespace SpatialToolkit
 {
     public sealed class ToolkitTrackedHands
     {
+        public static bool UseLeftHand(bool leftTracked, bool rightTracked, bool preferLeft) =>
+            preferLeft ? leftTracked : !rightTracked && leftTracked;
 #if ENABLE_PICO_XR_SDK && UNITY_ANDROID && !UNITY_EDITOR
         HandJointLocations left, right;
         bool eyeStarted, eyePermissionRequested;
@@ -37,20 +39,20 @@ namespace SpatialToolkit
             {
                 var device = InputDevices.GetDeviceAtXRNode(XRNode.Head);
                 result.Tracked = device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.isTracked, out bool tracked) && tracked;
-                result.Dwell = true; result.Ray = gaze; result.Position = head.position;
+                result.Gaze = result.Dwell = true; result.Ray = gaze; result.Position = head.position;
                 result.Source = eye ? "Eye gaze dwell" : "Head gaze dwell"; return result;
             }
 #if ENABLE_PICO_XR_SDK && UNITY_ANDROID && !UNITY_EDITOR
             bool l = TryHand(HandType.HandLeft, origin, ref left, out var lp, out var lr, out var la, out var ll, out bool lpinch);
             bool r = TryHand(HandType.HandRight, origin, ref right, out var rp, out var rr, out var ra, out var rl, out bool rpinch);
-            bool useLeft = previousSource != null && previousSource.StartsWith("Left hand") && l ? true :
-                previousSource != null && previousSource.StartsWith("Right hand") && r ? false : leftHanded ? l : !r && l;
+            bool useLeft = UseLeftHand(l, r, leftHanded);
             if (!(useLeft ? l : r)) return MenuFallback(result, head);
             result.Tracked = true; result.Position = useLeft ? lp : rp; result.Rotation = useLeft ? lr : rr;
             result.PinchHeld = useLeft ? lpinch : rpinch;
             result.AlignmentForward = useLeft ? ll : rl; result.AlignmentTracked = result.AlignmentForward.sqrMagnitude > 0.5f;
             bool handRay = mode == ToolkitInputMode.HandRay || (!eye && mode == ToolkitInputMode.Automatic);
             result.HandRay = handRay;
+            result.Gaze = !handRay;
             result.Ray = handRay ? (useLeft ? la : ra) : gaze;
             if (handRay)
             {
@@ -69,7 +71,7 @@ namespace SpatialToolkit
         {
             var device = InputDevices.GetDeviceAtXRNode(XRNode.Head);
             result.Tracked = device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.isTracked, out bool tracked) && tracked;
-            result.Dwell = result.MenuOnly = true; result.Ray = new Ray(head.position, head.forward);
+            result.Gaze = result.Dwell = result.MenuOnly = true; result.Ray = new Ray(head.position, head.forward);
             result.Position = head.position; result.Source = "Head gaze menu (hands unavailable)";
             return result;
         }

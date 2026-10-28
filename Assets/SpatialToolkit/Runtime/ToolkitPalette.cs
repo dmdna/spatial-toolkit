@@ -13,8 +13,8 @@ namespace SpatialToolkit
         string editing, number;
         bool replaceNumber;
         bool controls, fallbackPlaced, settings, about, minimized;
-        Text undoLabel;
-        Image undoProgress;
+        Text undoLabel, loadLabel;
+        Image undoProgress, loadProgress;
         Sprite pill;
         string inputSource;
         ToolkitPaletteAction highlighted;
@@ -22,7 +22,7 @@ namespace SpatialToolkit
         Color highlightTextColor;
         public bool Visible => canvas && canvas.gameObject.activeSelf;
         public void Initialize(SpatialToolkitApp owner) { app = owner; Build(); }
-        public void Rebuild() { Highlight(null, 0); undoLabel = null; undoProgress = null; if (canvas) { canvas.gameObject.SetActive(false); Destroy(canvas.gameObject); } Build(); }
+        public void Rebuild() { Highlight(null, 0); undoLabel = loadLabel = null; undoProgress = loadProgress = null; if (canvas) { canvas.gameObject.SetActive(false); Destroy(canvas.gameObject); } Build(); }
         public void Navigate(string page)
         {
             settings = page == "settings"; about = page == "about";
@@ -34,6 +34,11 @@ namespace SpatialToolkit
         {
             if (undoLabel) { undoLabel.text = loading ? "Clear All (Hold)" : "Undo"; undoLabel.fontSize = loading ? 17 : 23; }
             if (undoProgress) { undoProgress.gameObject.SetActive(loading); undoProgress.fillAmount = progress; }
+        }
+        public void LoadHold(float progress, bool loading)
+        {
+            if (loadLabel) { loadLabel.text = loading ? "Delete Room (Hold)" : "Load room"; loadLabel.fontSize = loading ? 17 : 23; }
+            if (loadProgress) { loadProgress.gameObject.SetActive(loading); loadProgress.fillAmount = progress; }
         }
         public void ToggleControls() { controls = !controls; Rebuild(); }
         public void TogglePin() { pinned = !pinned; Rebuild(); }
@@ -302,17 +307,20 @@ namespace SpatialToolkit
             AddHitTarget(image, action, size);
             var labelText = ToolkitVisuals.Text(image.transform, size - new Vector2(8, 0), Vector2.zero, label, 23,
                 tint.HasValue && tint.Value.grayscale > 0.45f ? new Color(0.04f, 0.08f, 0.12f) : Color.white);
-            if (action == "undo")
+            if (action == "undo" || action == "load")
             {
-                undoLabel = labelText;
-                undoProgress = Image(image.transform, new Vector2(size.x - 12, 5), new Vector2(0, -size.y / 2 + 7), ToolkitVisuals.Mint);
-                undoProgress.type = UnityEngine.UI.Image.Type.Filled; undoProgress.fillMethod = UnityEngine.UI.Image.FillMethod.Horizontal;
-                undoProgress.fillOrigin = 0; undoProgress.gameObject.SetActive(false);
+                var progress = Image(image.transform, new Vector2(size.x - 12, 5), new Vector2(0, -size.y / 2 + 7), ToolkitVisuals.Mint);
+                progress.type = UnityEngine.UI.Image.Type.Filled; progress.fillMethod = UnityEngine.UI.Image.FillMethod.Horizontal;
+                progress.fillOrigin = 0; progress.gameObject.SetActive(false);
+                if (action == "undo") { undoLabel = labelText; undoProgress = progress; }
+                else { loadLabel = labelText; loadProgress = progress; }
             }
         }
+
         public void UpdatePose(ToolInput input, Transform head)
         {
             if (!canvas) return;
+            FacePlayer(head);
             if (inputSource != input.Source) { inputSource = input.Source; Rebuild(); }
             if (input.PaletteTracked) { wristLastSeen = Time.unscaledTime; lastWristUp = input.PaletteUp; }
             bool wristGrace = AttachedToWrist && !input.PaletteTracked && Time.unscaledTime - wristLastSeen < 0.7f && !input.Dwell;
@@ -330,7 +338,7 @@ namespace SpatialToolkit
                     head.position + head.forward * 0.8f + head.right * (input.MenuOnly ? 0 : -0.32f);
                 transform.position = wrist ? Vector3.Lerp(transform.position, target, 1 - Mathf.Exp(-18 * Time.unscaledDeltaTime)) : target;
                 Vector3 facing = transform.position - head.position;
-                if (facing.sqrMagnitude > 0.01f) transform.rotation = Quaternion.LookRotation(facing, Vector3.up);
+                if (facing.sqrMagnitude > 0.01f) transform.rotation = ToolkitVisuals.UprightRotation(facing, transform.rotation);
                 fallbackPlaced = !wrist;
             }
             if (status) status.text = app.Status;

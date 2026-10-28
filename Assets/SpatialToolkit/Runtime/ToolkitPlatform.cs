@@ -27,6 +27,49 @@ namespace SpatialToolkit
         string captureSession;
 #endif
         public bool IsLocalized { get; private set; } = true;
+        public void DetachRoom()
+        {
+            ReleaseHandle(); IsLocalized = true;
+            if (app && app.RoomRoot) app.RoomRoot.gameObject.SetActive(true);
+        }
+        public async System.Threading.Tasks.Task<bool> DeleteSavedAnchor(string uuid)
+        {
+            if (Application.isEditor || string.IsNullOrEmpty(uuid)) return true;
+#if ENABLE_PICO_XR_SDK && UNITY_ANDROID && !UNITY_EDITOR
+            if (!Guid.TryParse(uuid, out var savedUuid)) return true;
+            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token))
+            {
+                timeout.CancelAfter(TimeSpan.FromSeconds(20));
+                if (!await ReadyAnchorProvider(timeout.Token)) return false;
+                if (anchorHandle != 0 && anchorUuid == uuid)
+                {
+                    var removed = await PXR_MixedReality.UnPersistSpatialAnchorAsync(anchorHandle, timeout.Token);
+                    if (removed != PxrResult.SUCCESS) { app.Message("Saved anchor could not be deleted: " + removed); return false; }
+                    DetachRoom(); return true;
+                }
+                var query = await PXR_MixedReality.QuerySpatialAnchorAsync(new[] { savedUuid }, timeout.Token);
+                if (query.result != PxrResult.SUCCESS) { app.Message("Saved anchor lookup failed: " + query.result); return false; }
+                if (query.anchorHandleList == null) return true;
+                bool success = true;
+                try
+                {
+                    foreach (var handle in query.anchorHandleList)
+                    {
+                        if (PXR_MixedReality.GetAnchorUuid(handle, out var found) != PxrResult.SUCCESS || found != savedUuid) continue;
+                        var removed = await PXR_MixedReality.UnPersistSpatialAnchorAsync(handle, timeout.Token);
+                        if (removed != PxrResult.SUCCESS) { success = false; app.Message("Saved anchor could not be deleted: " + removed); }
+                    }
+                }
+                finally
+                {
+                    foreach (var handle in query.anchorHandleList) if (handle != anchorHandle) PXR_MixedReality.DestroyAnchor(handle);
+                }
+                return success;
+            }
+#else
+            await System.Threading.Tasks.Task.Yield(); return true;
+#endif
+        }
         public void Initialize(SpatialToolkitApp owner)
         {
             app = owner;

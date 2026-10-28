@@ -50,7 +50,7 @@ public static partial class ToolkitFeatureChecks
 
             app.Preferences.wristGestureDisabled = true; palette.ResetWristPose();
             palette.UpdatePose(new ToolInput { Source = "Hotfix replay" }, head);
-            palette.transform.SetPositionAndRotation(head.position + head.forward * 0.8f + head.right * 0.1f, Quaternion.LookRotation(head.forward));
+            palette.transform.SetPositionAndRotation(head.position + head.forward * 0.8f + head.right * 0.1f, ToolkitVisuals.UprightRotation(head.forward * 0.8f + head.right * 0.1f, Quaternion.identity));
             var drag = Button("dragmenu");
             Vector3 grabPoint = drag.transform.TransformPoint(new Vector3(110, 0, -4));
             Vector3 localGrab = palette.transform.InverseTransformPoint(grabPoint);

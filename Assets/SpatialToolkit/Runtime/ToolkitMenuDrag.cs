@@ -11,15 +11,20 @@ namespace SpatialToolkit
         string pendingMenuAction;
         float menuPressedAt, menuDepth;
         Vector3 menuStartPosition, menuHandStart, menuGrabLocal, menuGrabWorldStart;
-        Quaternion menuStartRotation, menuFacingOffset;
+        Quaternion menuStartRotation;
         bool wasPinned;
         float wristLastSeen = -10;
         Vector3 lastWristUp;
+        public void FacePlayer(Transform head)
+        {
+            if (head && !menuDragging)
+                transform.rotation = ToolkitVisuals.UprightRotation(transform.position - head.position, transform.rotation);
+        }
 
         public void CancelMenuDrag()
         {
             if (menuDragging)
-            { transform.SetPositionAndRotation(menuStartPosition, menuStartRotation); pinned = wasPinned; }
+            { transform.SetPositionAndRotation(menuStartPosition, ToolkitVisuals.UprightRotation(menuStartRotation * Vector3.forward, menuStartRotation)); pinned = wasPinned; }
             menuPending = menuDragging = false;
         }
 
@@ -34,9 +39,6 @@ namespace SpatialToolkit
                 if (!(input.Gesture ? input.TriggerDown : input.GripDown)) return false;
                 menuPending = true; pendingMenuAction = hit.Action; menuPressedAt = Time.unscaledTime;
                 menuStartPosition = transform.position; menuStartRotation = transform.rotation; wasPinned = pinned;
-                Vector3 initialFacing = head ? menuStartPosition - head.position : Vector3.zero;
-                menuFacingOffset = initialFacing.sqrMagnitude > 0.001f ?
-                    Quaternion.Inverse(Quaternion.LookRotation(initialFacing, Vector3.up)) * menuStartRotation : Quaternion.identity;
                 menuHandStart = input.Position; menuDepth = Mathf.Max(0.01f, Vector3.Dot(point - input.Ray.origin, input.Ray.direction));
                 menuGrabLocal = transform.InverseTransformPoint(point);
                 menuGrabWorldStart = point;
@@ -61,10 +63,13 @@ namespace SpatialToolkit
                 // the cursor. This preserves the exact dot-to-panel attachment, including
                 // off-center grabs and changes in facing while moving the menu.
                 Vector3 cursor = input.Ray.GetPoint(menuDepth);
-                Quaternion rotation = menuStartRotation;
+                Quaternion rotation = ToolkitVisuals.UprightRotation(menuStartRotation * Vector3.forward, menuStartRotation);
                 Vector3 center = menuStartPosition + (cursor - menuGrabWorldStart);
-                if (head && (center - head.position).sqrMagnitude > 0.001f)
-                    rotation = Quaternion.LookRotation(center - head.position, Vector3.up) * menuFacingOffset;
+                for (int i = 0; i < 8 && head; i++)
+                {
+                    rotation = ToolkitVisuals.UprightRotation(center - head.position, rotation);
+                    center = cursor - rotation * Vector3.Scale(transform.lossyScale, menuGrabLocal);
+                }
                 transform.rotation = rotation;
                 transform.position = cursor - transform.TransformVector(menuGrabLocal);
 

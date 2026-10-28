@@ -103,6 +103,12 @@ Seventh Prompt (more bug fixes):
 
 That works! Some more bug fixes:
 
+* Ensure the menu UI is always upright with gravity (vertical) and facing the player. It may face up, down, left, and right to face the user, but do not tilt the Roll such that the menu looks diagonal when facing the player.
 * When using head or eyes (gaze), get rid of the ray indicator and only keep the dot.
-* Make the selections (nodes, boxes, etc.) visible. Use either a highlight or an outline or make it a different color that visually indicates it is selected.
-* It's ok to fallback to the opposite hand if one is unavailable, but sometimes both hands become available again and it will remain on the hand. I want it so that when both hands are available, it automatically switches the main hand to the one selected on the Menu.
+* Make the selections (nodes, boxes, etc.) visible. Make the selection a different color that visually indicates it is selected. Make the selection color consistent for all different kinds of measurement selections.
+* When hovering over a selectable measurement, add an outline to it that is the same color chosen for selections. While at this, extend the offset distance of nodes slightly beyond its small radius so they are easier to select (but do not extend it too much, no more than double its radius (adding half a radius on all ends). My goal is to make it easier to select and to let users know when something is selected (or selectable).
+* It's ok to fallback to the opposite hand if one is unavailable, but sometimes both hands become available again and it will remain on the swapped hand even if the menu button indicates that the other is selected (Left or Right). I want it so that when both hands are available, it automatically switches the main hand to the one selected on the Menu.
+* In a similar fashion to holding Undo to Clear All, allow holding Load room to delete the saved room. Change the texts shown in the UI the same way the text fields change for holding to clear all.
+* There seems to be a bug after saving a room where a Measurement node was still active but remained invisible until a second node was placed. This persisted even after everything was undo'd and cleared all. 
+
+Then when you are done, build and open on the headset as usual, updating version number as appropriate. Do not worry about the github/version control. I am taking care of it manually.

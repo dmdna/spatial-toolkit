@@ -11,6 +11,20 @@ namespace SpatialToolkit
         public static Color Mint => ColorOption == 0 ? new Color(0.35f, 1f, 0.81f) : ColorOption == 1 ? new Color(0.35f, 0.78f, 1f) : Color.white;
         public static Color Lavender => ColorOption == 0 ? new Color(0.73f, 0.65f, 1f) : ColorOption == 1 ? new Color(1f, 0.85f, 0.4f) : new Color(0.7f, 0.7f, 0.7f);
         public static Color Coral => ColorOption == 0 ? new Color(1f, 0.55f, 0.56f) : ColorOption == 1 ? new Color(1f, 0.6f, 0.25f) : new Color(1f, 0.88f, 0.15f);
+        public static Color Selection => ColorOption == 0 ? new Color(1f, 0.85f, 0.2f) : ColorOption == 1 ? new Color(0.84f, 0.6f, 1f) : new Color(0.15f, 1f, 1f);
+        public static Quaternion UprightRotation(Vector3 forward, Quaternion fallback)
+        {
+            if (forward.sqrMagnitude < 0.000001f) forward = fallback * Vector3.forward;
+            forward.Normalize();
+            var horizontal = Vector3.ProjectOnPlane(forward, Vector3.up);
+            if (horizontal.sqrMagnitude < 0.000001f)
+            {
+                horizontal = Vector3.ProjectOnPlane(fallback * Vector3.forward, Vector3.up);
+                if (horizontal.sqrMagnitude < 0.000001f) horizontal = Vector3.forward;
+                forward = (horizontal.normalized * 0.001f + Vector3.up * Mathf.Sign(forward.y)).normalized;
+            }
+            return Quaternion.LookRotation(forward, Vector3.up);
+        }
         public static Color Panel => ColorOption == 2 ? Color.black : new Color(0.035f, 0.065f, 0.10f, ColorOption == 0 ? 0.94f : 0.98f);
         public static Color Button => ColorOption == 2 ? new Color(0.17f, 0.17f, 0.17f) : new Color(0.19f, 0.24f, 0.31f);
         public static Color WithAlpha(Color color, float alpha) { color.a = alpha; return color; }
