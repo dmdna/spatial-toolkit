@@ -1,15 +1,9 @@
 using System;
-using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
 #if ENABLE_PICO_XR_SDK
 using ByteDance.PICO.XR;
-#endif
-#if UNITY_ANDROID && !UNITY_EDITOR
-using ByteDance.PICO.Platform.CLIB;
-using ByteDance.PICO.Platform.Framework;
-using ByteDance.PICO.Platform.Service;
 #endif
 
 namespace SpatialToolkit
@@ -22,9 +16,6 @@ namespace SpatialToolkit
         Transform anchoredRoot;
         ulong anchorHandle;
         string anchorUuid;
-#endif
-#if UNITY_ANDROID && !UNITY_EDITOR
-        string captureSession;
 #endif
         public bool IsLocalized { get; private set; } = true;
         public void DetachRoom()
@@ -175,49 +166,6 @@ namespace SpatialToolkit
 #endif
         }
 
-        public async System.Threading.Tasks.Task<string> CaptureSnapshot()
-        {
-#if UNITY_EDITOR
-            string directory = Path.Combine(Application.persistentDataPath, "Snapshots"); Directory.CreateDirectory(directory);
-            string path = Path.Combine(directory, "SpatialToolkit-" + DateTime.Now.ToString("yyyyMMdd-HHmmss-fff") + ".png");
-            ScreenCapture.CaptureScreenshot(path);
-            for (int i = 0; i < 60 && !File.Exists(path); i++) await System.Threading.Tasks.Task.Delay(100);
-            return File.Exists(path) ? "Editor snapshot saved: " + path : "Snapshot did not finish. Try again.";
-#elif UNITY_ANDROID
-            // SDK capture is used instead of Unity ScreenCapture: the latter cannot promise passthrough composition.
-            if (!CoreService.Initialized)
-            {
-                var init = await WithTimeout(CoreService.AsyncInitialize().Async()); Check(init);
-                if (init.Data != PlatformInitializeResult.Success && init.Data != PlatformInitializeResult.AlreadyInitialized)
-                    return "Snapshot needs a configured PICO Platform app ID. Use the headset capture control.";
-            }
-            if (string.IsNullOrEmpty(captureSession))
-            {
-                var session = await WithTimeout(HighlightService.StartSession().Async()); Check(session);
-                captureSession = session.Data;
-            }
-            if (string.IsNullOrEmpty(captureSession)) throw new InvalidOperationException("No capture session returned.");
-            var capture = await WithTimeout(HighlightService.CaptureScreen().Async()); Check(capture);
-            if (capture.Data == null || string.IsNullOrEmpty(capture.Data.JobId)) throw new InvalidOperationException("No capture job returned.");
-            var saved = await WithTimeout(HighlightService.SaveMedia(capture.Data.JobId, captureSession).Async()); Check(saved);
-            return "Snapshot saved on device.";
-#else
-            await System.Threading.Tasks.Task.Yield(); return "Use the headset's capture control on PICO.";
-#endif
-        }
-#if UNITY_ANDROID && !UNITY_EDITOR
-        static async System.Threading.Tasks.Task<T> WithTimeout<T>(System.Threading.Tasks.Task<T> operation)
-        {
-            if (await System.Threading.Tasks.Task.WhenAny(operation, System.Threading.Tasks.Task.Delay(15000)) != operation)
-                throw new TimeoutException("PICO capture timed out.");
-            return await operation;
-        }
-        static void Check(Message message)
-        {
-            if (message == null) throw new InvalidOperationException("PICO returned no capture response.");
-            if (message.IsError) throw new InvalidOperationException("PICO capture: " + message.Error.Message);
-        }
-#endif
         void ReleaseHandle()
         {
 #if ENABLE_PICO_XR_SDK && UNITY_ANDROID && !UNITY_EDITOR

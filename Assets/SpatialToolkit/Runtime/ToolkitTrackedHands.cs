@@ -28,7 +28,7 @@ namespace SpatialToolkit
             }
         }
 
-        public ToolInput Read(Transform head, Transform origin, bool leftHanded, ToolkitInputMode mode, string previousSource)
+        public ToolInput Read(Transform head, Transform origin, bool leftHanded, ToolkitInputMode mode, string previousSource, bool allowFallback = true)
         {
             var result = new ToolInput { Rotation = head.rotation, Source = "Hands unavailable", Gesture = true };
             bool eye = false;
@@ -37,6 +37,7 @@ namespace SpatialToolkit
             if (!eye) gaze = new Ray(head.position, head.forward);
             if (mode == ToolkitInputMode.Dwell)
             {
+                if (!allowFallback) return result;
                 var device = InputDevices.GetDeviceAtXRNode(XRNode.Head);
                 result.Tracked = device.TryGetFeatureValue(UnityEngine.XR.CommonUsages.isTracked, out bool tracked) && tracked;
                 result.Gaze = result.Dwell = true; result.Ray = gaze; result.Position = head.position;
@@ -45,8 +46,9 @@ namespace SpatialToolkit
 #if ENABLE_PICO_XR_SDK && UNITY_ANDROID && !UNITY_EDITOR
             bool l = TryHand(HandType.HandLeft, origin, ref left, out var lp, out var lr, out var la, out var ll, out bool lpinch);
             bool r = TryHand(HandType.HandRight, origin, ref right, out var rp, out var rr, out var ra, out var rl, out bool rpinch);
-            bool useLeft = UseLeftHand(l, r, leftHanded);
-            if (!(useLeft ? l : r)) return MenuFallback(result, head);
+            bool useLeft = allowFallback ? UseLeftHand(l, r, leftHanded) : leftHanded;
+            if (!(useLeft ? l : r)) return allowFallback ? MenuFallback(result, head) : result;
+            result.LeftHand = useLeft;
             result.Tracked = true; result.Position = useLeft ? lp : rp; result.Rotation = useLeft ? lr : rr;
             result.PinchHeld = useLeft ? lpinch : rpinch;
             result.AlignmentForward = useLeft ? ll : rl; result.AlignmentTracked = result.AlignmentForward.sqrMagnitude > 0.5f;
@@ -63,7 +65,7 @@ namespace SpatialToolkit
             result.PaletteTracked = useLeft ? r : l;
             result.PalettePosition = useLeft ? rp : lp; result.PaletteRotation = useLeft ? rr : lr;
 #endif
-            if (!result.Tracked) return MenuFallback(result, head);
+            if (!result.Tracked && allowFallback) return MenuFallback(result, head);
             return result;
         }
 

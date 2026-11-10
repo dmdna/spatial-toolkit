@@ -34,7 +34,7 @@ namespace SpatialToolkit
         Text liveReadout, levelReadout;
         ToolInput state;
         Vector3 target, targetNormal;
-        bool validSurface, captureBusy, busy, roomFrameEstablished;
+        bool validSurface, busy, roomFrameEstablished;
         float reach = 5, messageUntil, loadConfirmationUntil;
         string activePath;
         ToolkitHandle grabbed;
@@ -98,15 +98,16 @@ namespace SpatialToolkit
 
         void Update()
         {
-            if (!ViewCamera || !RoomRoot || captureBusy || !hasFocus) return;
-            input.LeftHanded = Preferences.leftHanded;
-            input.Mode = Preferences.inputMode;
-            state = input.Read(ViewCamera.transform, TrackingOrigin, ViewCamera);
+            if (!ViewCamera || !RoomRoot || !hasFocus) return;
+            ReadInteractionFrame();
             UpdateInteraction();
+            DrawOtherPointer();
+            frameSampled = false;
         }
 
         void CancelGrab(bool resetDwell = true)
         {
+            CancelDimensionDrag(); EndStickRotation(); twoHandGrab = false;
             if (grabbed) { Session = JsonUtility.FromJson<ToolkitSession>(beforeGrab); grabbed = null; RenderAll(); }
             CancelUndoHold(); CancelLoadHold(); pendingGrab = null; if (palette) palette.CancelMenuDrag(); lastNodePress = -10;
             if (resetDwell) dwell.Reset();
@@ -117,13 +118,16 @@ namespace SpatialToolkit
             hasFocus = focus;
             if (!focus) CancelGrab();
             input.Reset();
+            secondaryInput?.Reset();
         }
         void OnApplicationPause(bool paused) { OnApplicationFocus(!paused); }
 
         void UpdateInteraction()
         {
             if (state.SourceChanged) CancelGrab();
-            palette.UpdatePose(state, ViewCamera.transform);
+            palette.UpdatePose(frameSampled ? primaryState : state, ViewCamera.transform);
+            UpdateHiddenMenu();
+            if (MenuHidden) return;
             pointer.gameObject.SetActive(state.Tracked && !state.Gaze && !state.Dwell && !state.MenuOnly);
             reticle.gameObject.SetActive(state.Tracked);
             if (!state.Tracked)
@@ -132,6 +136,7 @@ namespace SpatialToolkit
                 previewLine.gameObject.SetActive(false); liveReadout.transform.parent.gameObject.SetActive(false);
                 if (fitPreview) fitPreview.SetActive(false);
                 if (hangPreview) hangPreview.SetActive(false);
+                if (levelPreview) levelPreview.SetActive(false);
                 UpdateWorldHover(null);
                 Status = "Tracking lost. Bring a hand into view or reconnect a controller."; return;
             }
@@ -144,8 +149,10 @@ namespace SpatialToolkit
             pointer.SetPosition(0, state.VisualOriginTracked ? state.VisualRayOrigin : state.Ray.origin); pointer.SetPosition(1, rayEnd);
             reticle.position = rayEnd;
             var color = !validSurface ? new Color(0.65f, 0.7f, 0.76f) : ToolColor();
+            if (state.Gaze || state.Dwell) color.a = 0.6f;
             reticle.GetComponent<Renderer>().sharedMaterial.color = color;
             pointer.sharedMaterial.color = new Color(color.r, color.g, color.b, 0.65f);
+            if (state.TriggerDown || state.GripDown || state.Undo) EndStickRotation();
             if (state.Undo) UndoAction();
             if (state.ToggleSnap) Dispatch("snap");
             var handle = FindHandle();
@@ -153,13 +160,14 @@ namespace SpatialToolkit
             palette.Highlight(menuHit && action.Action != "block" && action.Action != "expand" ? action : null, state.Dwell ? dwell.Progress : 0);
             UpdateUndoHold(menuHit ? action : null);
             UpdateLoadHold(menuHit ? action : null);
+            bool numericConsumed = HandleDimensionDrag(menuHit ? action : null, menuPoint);
             bool menuDragConsumed = !busy && palette.HandleMenuDrag(state, menuHit ? action : null, menuPoint, ViewCamera.transform);
             if (palette.Dragging)
             {
                 pointer.SetPosition(1, palette.DragPoint); reticle.position = palette.DragPoint;
                 menuBlocked = true;
             }
-            bool select = state.TriggerDown && !menuDragConsumed && !busy;
+            bool select = state.TriggerDown && !menuDragConsumed && !numericConsumed && !busy;
             if (state.Dwell)
             {
                 string focus = busy ? null : menuHit ? (action.Action == "block" ? null : "menu:" + action.Action) : state.MenuOnly || !platform.IsLocalized ? null :
@@ -194,7 +202,7 @@ namespace SpatialToolkit
                     SelectHandle(handle, state.Gesture && !state.Dwell);
                     if (state.Dwell) BeginGrabHandle(handle);
                 }
-                else
+                else if (OwnsPlacement)
                 {
                     bool doublePress = !state.Dwell && PathTool && Time.unscaledTime - lastNodePress <= 0.32f;
                     int before = Session.items.Sum(i => IsPath(i) ? i.points.Count : 0);
@@ -207,20 +215,23 @@ namespace SpatialToolkit
             }
             UpdatePendingGrab(menuHit || menuDragConsumed);
             if (!state.Gesture && state.GripDown && !menuDragConsumed && !menuHit && !busy && platform.IsLocalized) BeginGrab();
-            if (grabbed && menuHit && state.GripUp) { CancelGrab(); Message("Move cancelled over the menu."); }
-            if (grabbed && !menuHit) UpdateGrab();
-            UpdatePreview(); RefreshSelectionFeedback();
+            if (grabbed && !twoHandGrab && menuHit && state.GripUp) { CancelGrab(); Message("Move cancelled over the menu."); }
+            if (grabbed && UpdateTwoHandGrab(menuHit)) { }
+            else if (grabbed && !menuHit) UpdateGrab();
+            UpdateStickRotation();
+            UpdatePlacementPreview(); RefreshSelectionFeedback();
             if (Time.unscaledTime > messageUntil && !grabbed && !busy)
                 Status = state.MenuOnly ? "Look at Controls to enable hands-free dwell, or bring a hand into view." :
-                    validSurface ? (Tool == ToolkitTool.Fit && targetNormal.y > 0.8f && Overlaps(target + Vector3.up * (Preferences.furniture.y * 0.5f + 0.004f), Preferences.furniture, Quaternion.identity, null)
+                    validSurface ? (Tool == ToolkitTool.Fit && targetNormal.y > 0.8f && Overlaps(target + Vector3.up * (Preferences.furniture.y * 0.5f + 0.004f), Preferences.furniture, FitPreviewRotation, null)
                         ? "Preview blocked: overlaps a surface." : Snapping ? "Surface found • snapping on" : "Surface found • free placement") :
                     "No mapped surface • scan the room • reach " + reach.ToString("0.0") + " m";
         }
 
-        ToolkitHandle FindHandle()
+        ToolkitHandle FindHandle() => FindHandle(state.Ray);
+        ToolkitHandle FindHandle(Ray ray)
         {
             ToolkitHandle nearest = null; float distance = float.MaxValue;
-            foreach (var hit in Physics.RaycastAll(state.Ray, reach, ~0, QueryTriggerInteraction.Ignore))
+            foreach (var hit in Physics.RaycastAll(ray, reach, ~0, QueryTriggerInteraction.Ignore))
             {
                 var candidate = hit.collider.GetComponent<ToolkitHandle>();
                 if (candidate && Tool == ToolkitTool.Level && activePath != null && candidate.Node < 0 &&
@@ -254,12 +265,13 @@ namespace SpatialToolkit
             var origin = path != null && path.points.Count > 0 ? RoomRoot.TransformPoint(path.points[0]) : RoomRoot.position;
             target = ToolkitGeometry.SnapOnSurface(target, origin, targetNormal, Preferences.imperial ? 0.0127f : 0.01f);
         }
-        bool TryPaletteAction(out ToolkitPaletteAction action, out Vector3 point)
+        bool TryPaletteAction(out ToolkitPaletteAction action, out Vector3 point) => TryPaletteAction(state.Ray, out action, out point);
+        bool TryPaletteAction(Ray ray, out ToolkitPaletteAction action, out Vector3 point)
         {
             action = null; point = Vector3.zero;
             if (!palette.Visible) return false;
             float distance = float.MaxValue;
-            foreach (var hit in Physics.RaycastAll(state.Ray, Mathf.Max(3, reach), ~0, QueryTriggerInteraction.Ignore))
+            foreach (var hit in Physics.RaycastAll(ray, Mathf.Max(3, reach), ~0, QueryTriggerInteraction.Ignore))
             {
                 var candidate = hit.collider.GetComponent<ToolkitPaletteAction>();
                 if (candidate && hit.distance < distance) { action = candidate; distance = hit.distance; point = hit.point; }
@@ -270,6 +282,7 @@ namespace SpatialToolkit
 
         void Place()
         {
+            if (!OwnsPlacement) return;
             if (!validSurface) { Message("Find a mapped wall or floor before placing."); return; }
             if (Session.items.Count >= 100) { Message("This room has 100 items. Delete an item to add another."); return; }
             if (Selection != null) ClearSelection(false);
@@ -304,9 +317,10 @@ namespace SpatialToolkit
             {
                 if (Vector3.Dot(targetNormal, Vector3.up) < 0.8f) { Message("Aim at the floor to place your furniture box."); return; }
                 var center = target + Vector3.up * (Preferences.furniture.y * 0.5f + 0.004f);
-                if (Overlaps(center, Preferences.furniture, Quaternion.identity, null)) { Message("The box overlaps a surface. Choose more space."); return; }
+                if (Overlaps(center, Preferences.furniture, FitPreviewRotation, null)) { Message("The box overlaps a surface. Choose more space."); return; }
                 Remember(); Session.items.Add(new ToolkitItemData { kind = ToolkitItemKind.Furniture,
-                    position = RoomRoot.InverseTransformPoint(center), dimensions = Preferences.furniture });
+                    position = RoomRoot.InverseTransformPoint(center), dimensions = Preferences.furniture,
+                    rotation = Quaternion.Inverse(RoomRoot.rotation) * FitPreviewRotation });
                 Message(state.Gesture ? "Furniture placed. Pinch the box and hold to move; release to drop." : "Furniture placed. Hold grip to move it.");
             }
             else
@@ -324,7 +338,8 @@ namespace SpatialToolkit
 
         public void Dispatch(string command)
         {
-            if (busy || captureBusy) return;
+            if (busy) return;
+            EndStickRotation();
             var parts = command.Split(':'); var key = parts[0];
             if (key == "block" || key == "dragmenu") return;
             if (key == "settings" || key == "about" || key == "main" || key == "minimize" || key == "expand") { CancelUndoHold(); CancelLoadHold(); palette.Navigate(key); return; }
@@ -338,13 +353,13 @@ namespace SpatialToolkit
             switch (key)
             {
                 case "startpath": StartPathAtSelection(); return;
-                case "tool": ClearSelection(false); Tool = (ToolkitTool)direction; FinishPath(); hasHangPreviewPose = false; break;
+                case "tool": ClearSelection(false); Tool = (ToolkitTool)direction; FinishPath(); hasHangPreviewPose = hasLevelPreviewPose = hasFitPreviewPose = false; break;
                 case "wrist": Preferences.wristGestureDisabled = !Preferences.wristGestureDisabled; palette.ResetWristPose(); break;
                 case "colors": Preferences.colorOption = (Preferences.colorOption + direction + 3) % 3; ApplyColors(); break;
                 case "snap": Snapping = !Snapping; Message(Snapping ? "Snapping on." : "Snapping off."); break;
                 case "units": Preferences.imperial = !Preferences.imperial; RenderAll(); break;
-                case "hand": Preferences.leftHanded = !Preferences.leftHanded; input.Reset(); break;
-                case "input": Preferences.inputMode = (ToolkitInputMode)direction; input.Reset(); CancelGrab(); break;
+                case "hand": CancelGrab(); Preferences.leftHanded = !Preferences.leftHanded; input.Reset(); secondaryInput?.Reset(); palette.ResetWristPose(); break;
+                case "input": Preferences.inputMode = (ToolkitInputMode)direction; input.Reset(); secondaryInput?.Reset(); CancelGrab(); break;
                 case "reach": reach = Mathf.Clamp(reach + direction * 0.5f, 0.2f, 12); break;
                 case "rotate": RotateSelection(direction * 15); break;
                 case "delete": DeleteSelection(); break;
@@ -364,10 +379,10 @@ namespace SpatialToolkit
                     if (Session.items.Count > 0 && Time.unscaledTime > loadConfirmationUntil)
                     { loadConfirmationUntil = Time.unscaledTime + 6; Message("Load replaces this workspace. Save first, or press Load again.", 6); return; }
                     LoadRoom(); return;
-                case "snapshot": StartCoroutine(Capture()); return;
+                case "hidemenu": HideMenu(); return;
             }
             palette.Rebuild();
-            try { File.WriteAllText(PreferencesPath, JsonUtility.ToJson(Preferences)); }
+            try { if (dimensionKey == null) File.WriteAllText(PreferencesPath, JsonUtility.ToJson(Preferences)); }
             catch (Exception e) { Debug.LogWarning("Settings not saved: " + e.Message); }
         }
 
@@ -421,7 +436,7 @@ namespace SpatialToolkit
                 case "inset": Preferences.inset = meters; break;
                 default: return false;
             }
-            try { File.WriteAllText(PreferencesPath, JsonUtility.ToJson(Preferences)); }
+            try { if (dimensionKey == null) File.WriteAllText(PreferencesPath, JsonUtility.ToJson(Preferences)); }
             catch (Exception e) { Debug.LogWarning("Settings not saved: " + e.Message); }
             Message("Dimension updated."); return true;
         }
@@ -440,6 +455,7 @@ namespace SpatialToolkit
         }
         void Remember()
         {
+            if (dimensionKey != null) return;
             undo.Add(JsonUtility.ToJson(Session)); if (undo.Count > 50) undo.RemoveAt(0);
         }
         public void UndoAction()
@@ -463,11 +479,13 @@ namespace SpatialToolkit
             if (linked != null && Selection != null && Selection.kind == ToolkitItemKind.AnglePath)
                 handle = visuals[Selection.id].GetComponentsInChildren<ToolkitHandle>().First(h => h.Node == 0);
             grabbed = handle;
+            rebaseGrab = false;
             float distance = Mathf.Max(0.05f, Vector3.Dot(handle.transform.position - state.Ray.origin, state.Ray.direction));
             beforeGrab = JsonUtility.ToJson(Session); grabDepth = distance; throwVelocity = Vector3.zero;
             grabYaw = Mathf.Atan2(state.Forward.x, state.Forward.z) * Mathf.Rad2Deg;
             var item = Session.items.Find(i => i.id == grabbed.ItemId);
             grabWorldRotation = RoomRoot.rotation * item.rotation;
+            BeginWristRotation();
             previousGrabPosition = state.Ray.GetPoint(grabDepth); Haptic();
         }
         void UpdateGrab()
@@ -476,6 +494,7 @@ namespace SpatialToolkit
             if (item == null) { grabbed = null; return; }
             string id = grabbed.ItemId; int node = grabbed.Node;
             Vector3 point = validSurface ? target : state.Ray.GetPoint(grabDepth);
+            if (rebaseGrab) point = rebasePoint + state.Ray.GetPoint(grabDepth) - rebaseRayPoint;
             bool behind = Vector3.Dot(point - ViewCamera.transform.position, ViewCamera.transform.forward) < -0.15f;
             throwVelocity = Vector3.Lerp(throwVelocity, (point - previousGrabPosition) / Mathf.Max(Time.unscaledDeltaTime, 0.001f), 0.35f);
             previousGrabPosition = point;
@@ -493,8 +512,10 @@ namespace SpatialToolkit
                 if (item.kind == ToolkitItemKind.Furniture)
                 {
                     point += Vector3.up * item.dimensions.y * 0.5f;
-                    float yaw = Mathf.DeltaAngle(grabYaw, Mathf.Atan2(state.Forward.x, state.Forward.z) * Mathf.Rad2Deg);
-                    if (Snapping) yaw = Mathf.Round(yaw / 15) * 15;
+                    float yaw = state.Gesture ? WristYaw() : Mathf.DeltaAngle(grabYaw, Mathf.Atan2(state.Forward.x, state.Forward.z) * Mathf.Rad2Deg);
+                    if (state.Gesture || Snapping) yaw = Mathf.Round(yaw / 15) * 15;
+                    grabStickYaw += state.RotateAxis * 30 * Time.unscaledDeltaTime;
+                    yaw += grabStickYaw;
                     item.rotation = Quaternion.Inverse(RoomRoot.rotation) * Quaternion.AngleAxis(yaw, Vector3.up) * grabWorldRotation;
                 }
                 item.position = RoomRoot.InverseTransformPoint(point);
@@ -634,12 +655,7 @@ namespace SpatialToolkit
             }
             else
             {
-                for (int i = -6; i <= 6; i++)
-                {
-                    float x = i * 0.1f; Color color = i == 0 ? ToolkitVisuals.Mint : ToolkitVisuals.WithAlpha(ToolkitVisuals.Mint, ToolkitVisuals.ColorOption == 2 ? 0.65f : 0.3f);
-                    ToolkitVisuals.Line(root.transform, new[] { new Vector3(x, -0.6f, 0), new Vector3(x, 0.6f, 0) }, color, i == 0 ? 0.003f : 0.0015f);
-                    ToolkitVisuals.Line(root.transform, new[] { new Vector3(-0.6f, x, 0), new Vector3(0.6f, x, 0) }, color, i == 0 ? 0.003f : 0.0015f);
-                }
+                DrawLevelGrid(root.transform);
                 root.AddComponent<BoxCollider>().size = new Vector3(1.2f, 1.2f, 0.015f);
                 root.AddComponent<ToolkitHandle>().ItemId = item.id;
                 levelReadout = ToolkitVisuals.Label(root.transform, Vector3.up * 0.7f, "Align controller with edge", ToolkitVisuals.Mint);
@@ -667,7 +683,9 @@ namespace SpatialToolkit
                 liveReadout.transform.parent.position = (last + target) * 0.5f + Vector3.up * 0.06f;
                 liveReadout.text = SegmentText(RoomRoot.InverseTransformPoint(last), RoomRoot.InverseTransformPoint(target), Tool == ToolkitTool.Level);
             }
-            bool fit = Tool == ToolkitTool.Fit && validSurface && targetNormal.y > 0.8f && !grabbed && !menuBlocked && Selection == null;
+            if (Tool == ToolkitTool.Fit && validSurface && targetNormal.y > 0.8f && !grabbed && !menuBlocked)
+            { fitPreviewPosition = target; hasFitPreviewPose = true; }
+            bool fit = Tool == ToolkitTool.Fit && hasFitPreviewPose && !grabbed && Selection == null && (menuBlocked || validSurface && targetNormal.y > 0.8f);
             if (fit && !fitPreview)
             {
                 fitPreview = new GameObject("Furniture preview", typeof(ToolkitOwned), typeof(ToolkitMaterialCleanup));
@@ -675,13 +693,14 @@ namespace SpatialToolkit
             }
             if (fitPreview)
             {
-                fitPreview.SetActive(fit); fitPreview.transform.position = target + Vector3.up * (Preferences.furniture.y * 0.5f + 0.004f);
+                fitPreview.SetActive(fit); fitPreview.transform.SetPositionAndRotation(fitPreviewPosition + Vector3.up * (Preferences.furniture.y * 0.5f + 0.004f), FitPreviewRotation);
                 fitPreview.transform.localScale = Preferences.furniture;
-                bool blocked = fit && Overlaps(fitPreview.transform.position, Preferences.furniture, Quaternion.identity, null);
+                bool blocked = fit && Overlaps(fitPreview.transform.position, Preferences.furniture, FitPreviewRotation, null);
                 foreach (var line in fitPreview.GetComponentsInChildren<LineRenderer>())
                     if (!line.GetComponent<ToolkitLineOutline>()) line.sharedMaterial.color = blocked ? ToolkitVisuals.Coral : ToolkitVisuals.Lavender;
             }
             UpdateHangPreview();
+            UpdateLevelPreview();
             if (levelReadout)
             {
                 if (!state.AlignmentTracked)
@@ -752,10 +771,10 @@ namespace SpatialToolkit
         }
         public void ClearAll()
         {
-            if (busy || captureBusy || grabbed) return;
+            if (busy || grabbed) return;
             if (Session.items.Count > 0) Remember();
             platform.DetachRoom(); Session.anchorUuid = null; pendingGrab = null; Session.items.Clear(); activePath = selectedId = null; selectedNode = -1;
-            lastNodePress = -10; hasHangPreviewPose = false; RenderAll(); palette.Rebuild(); Haptic();
+            lastNodePress = -10; hasHangPreviewPose = hasLevelPreviewPose = hasFitPreviewPose = false; RenderAll(); palette.Rebuild(); Haptic();
             Message("All nodes and measurements cleared. Undo brings them back.");
         }
         void ApplyColors()
@@ -763,6 +782,7 @@ namespace SpatialToolkit
             ToolkitVisuals.SetColorOption(Preferences.colorOption); RenderAll();
             if (fitPreview) { Destroy(fitPreview); fitPreview = null; }
             if (hangPreview) { Destroy(hangPreview); hangPreview = null; }
+            if (levelPreview) { Destroy(levelPreview); levelPreview = null; }
             previewLine.sharedMaterial.color = ToolkitVisuals.Mint;
             liveReadout.color = Color.white;
         }
@@ -831,22 +851,12 @@ namespace SpatialToolkit
             }
             if (saved.simulated && !Finite(saved.previewOrigin)) throw new InvalidDataException("Invalid editor room origin.");
         }
-        IEnumerator Capture()
-        {
-            captureBusy = true; palette.gameObject.SetActive(false); pointer.transform.parent.gameObject.SetActive(false);
-            CancelUndoHold();
-            if (fitPreview) fitPreview.SetActive(false);
-            if (hangPreview) hangPreview.SetActive(false);
-            yield return new WaitForEndOfFrame();
-            var capture = platform.CaptureSnapshot();
-            while (!capture.IsCompleted) yield return null;
-            palette.gameObject.SetActive(true); pointer.transform.parent.gameObject.SetActive(true); captureBusy = false;
-            if (capture.IsFaulted) { Message("Snapshot failed. Use the headset's capture control."); Debug.LogException(capture.Exception); }
-            else Message(capture.Result, 7);
-        }
         void OnDestroy()
         {
             input.Dispose();
+            secondaryInput?.Dispose();
+            if (otherPointerRoot) Destroy(otherPointerRoot);
+            if (levelPreview) Destroy(levelPreview);
             if (RoomRoot) Destroy(RoomRoot.gameObject);
             if (palette) Destroy(palette.gameObject);
             if (pointer) Destroy(pointer.transform.parent.gameObject);

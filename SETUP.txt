@@ -1,4 +1,4 @@
-﻿PICO SPATIAL TOOLKIT - MR DEVELOPMENT AND EMULATOR WORKFLOW
+PICO SPATIAL TOOLKIT - MR DEVELOPMENT AND EMULATOR WORKFLOW
 
 Project: Unity 6000.3.11f1, Android, PICO-native XR, PICO OS 6 / Project Swan.
 The app overlays measurement tools on video passthrough. Its scanned room
@@ -30,7 +30,9 @@ NORMAL BUILD AND RUN (NO AI OR MCP CONNECTION REQUIRED)
    Accept the app's spatial-data permission request if prompted.
    The controller icon > Controller Setting shows the input bindings.
    Defaults: right trigger U, right grip O, right A Space, right B Delete;
-   left trigger Q and left grip E. The toolkit uses A/X for Undo and B/Y
+   left trigger Q and left grip E. Thumbstick left/right rotates the live Fit
+   preview or selected box at 30 degrees/second. The main hand's stick owns
+   preview rotation, and placement keeps that angle. Use A/X for Undo and B/Y
    for snapping. Switch Left/Right Controller Mode to manipulate each hand.
    For hand/head/gaze operation, see CONTROLLER-FREE OPERATION below.
 7. To inspect application logs:
@@ -98,15 +100,28 @@ Eye Gaze + Pinch falls back to head aim without valid eye data. Hands Only
 never requests eye access. Either single hand works; Left/Right Hand picks
 the preferred hand. The other hand, when tracked, carries the wrist menu.
 
-Pinch: select a menu button or place on the scanned surface.
+Pinch: select a menu button or place on the scanned surface with the selected
+hand. Both hands can select and drag placed items or operate the UI; the
+off-hand ray and dot appear only over interactable targets. Eye/head aim
+accepts pinches from either hand. Two hands can hold one Fit box to turn it
+smoothly without scaling; release either hand to continue with the other.
+Wrist twist during a one-hand pinch turns the box in 15-degree steps.
 Pinch an existing item/node, hold, then move: drag. Release: drop.
 Gaze is captured on pinch, so looking elsewhere cannot move a held item.
 With one hand, the menu sits beside the initial view in world space; it
 does not chase the head while aiming. Pin Menu fixes it in place.
-Undo, snapping, units, exact numeric entry, Save, Load and Snapshot remain
-menu actions. Controls also offers pointer Reach +/-, Rotate +/-15 degrees
-for the selected furniture box, and Delete Selected. Select an item by
-grabbing/releasing it first. Delete remains undoable. Controller shortcuts
+Undo, snapping, units, exact numeric entry, Save, Load and Hide menu remain
+menu actions. Reach +/- is in Settings. Rotate +/-15 degrees is directly
+above Delete when a Fit box is selected. Tap a dimension row and release
+to open its keypad, or hold for 0.25 seconds and drag left/right for precise
+live adjustment. A complete drag is one undo step.
+The selected main hand alone owns unplaced previews and placement. An
+off-hand dimension drag stays active beyond the menu until release while
+the preview continues following the main hand, with its size updated live.
+Hide menu keeps it out of a system screenshot; release and select again
+to restore without placing.
+Hands-free dwell restores the menu after eight seconds. Delete remains
+undoable. Controller shortcuts
 and throw-behind deletion are retained; no throwing is required with hands.
 
 Hands-free Dwell is an app accessibility option, independent of any named

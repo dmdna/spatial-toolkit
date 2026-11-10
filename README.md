@@ -4,23 +4,23 @@
 
 Spatial Toolkit is a mixed reality workbench for measuring and planning changes to a physical room. It overlays measurement paths, furniture-sized boxes, picture layouts, and level guides on PICO video passthrough, using the scanned room mesh for surface placement and collision checks.
 
-The app targets **PICO OS 6 / Project Swan** through Unity's native PICO XR runtime on Android. The current build is **0.3.2 (Android version code 5)**. It is developed with **Unity 6000.3.11f1**. The project uses `picoxr` mode; Spatial Adapter is also installed, but this app runs in PICO XR mode.
+The app targets **PICO OS 6 / Project Swan** through Unity's native PICO XR runtime on Android. The current build is **0.4.2 (Android version code 8)**. It is developed with **Unity 6000.3.11f1**. The project uses `picoxr` mode; Spatial Adapter is also installed, but this app runs in PICO XR mode.
 
 Created by **Diego Medina Molina and the PICO Vibe Lab**.
 
 ## Features
 
 - **Smart Measure:** Place connected measurement nodes on scanned surfaces, read segment lengths, and close planar outlines to calculate area. Supports concave outlines, node editing, and metric or imperial units. Invalid or nonplanar areas are rejected.
-- **Fit Check:** Enter exact furniture width, height, and depth, then place, rotate, drag, or resize a translucent box in the room. Collision checks reject overlapping placements and resizes; blocked drag previews turn red.
+- **Fit Check:** Enter exact furniture width, height, and depth, then place, rotate, drag, or resize a translucent box in the room. The selected main hand owns the placement preview, even while the off-hand holds and drags a dimension beyond the menu. Its thumbstick rotates the preview smoothly before placement; the placed box keeps that exact orientation. Collision checks reject overlapping placements and resizes; blocked drag previews turn red.
 - **Picture Hanging:** Preview and place groups of one to eight equal-sized frames with exact dimensions, spacing, and hanger inset. Frame outlines and individual nail crosshairs update as values change.
-- **Level & Plumb:** Place a gravity-aligned wall grid and connected paths with horizontal and vertical angle readouts. Controller orientation or approximate finger alignment supplies the live level reference; the app does not automatically recognize physical object edges.
-- **Flexible input:** Use controllers, native hand rays, eye gaze with pinch, head aim with pinch, or hands-free dwell. Supports either hand, single-hand use, adjustable pointer reach, and a recovery menu when hands are unavailable. Eye input depends on supported hardware, calibration, and permission.
+- **Level & Plumb:** Preview a gravity-aligned grid on a wall before placing it and connected paths with horizontal and vertical angle readouts. Controller orientation or approximate finger alignment supplies the live level reference; the app does not automatically recognize physical object edges.
+- **Flexible input:** Use controllers, native hand rays, eye gaze with pinch, head aim with pinch, or hands-free dwell. The selected hand places new measurements; both hands can operate menus and select or drag placed items. The off-hand pointer appears over interactable targets, including in wrist mode. Two hands rotate a Fit box smoothly without scaling it; single-hand wrist twists rotate in 15-degree steps. Eye input depends on supported hardware, calibration, and permission. Gaze dots use 0.6 alpha to keep covered text readable.
 - **Wrist and floating menus:** Reveal the wrist palette with a wristwatch gesture, pin it in space, or minimize it to a compact bar. Floating panels can be dragged from their header or compact background and stay upright facing the user.
-- **Selection and editing:** Select placed items to edit their values, drag nodes and objects, delete individual items, or start new paths from existing nodes. Selected items share an accent color; hovered items gain an outline or halo.
+- **Selection and editing:** Select placed items to edit their values, drag nodes and objects, delete individual items, or start new paths from existing nodes. Tap and release a dimension row for the keypad, or hold for 0.25 seconds and drag horizontally for millimeter adjustments with live previews. One complete drag is one undo step. Fit rotation buttons appear above Delete in the selected box's editing panel, with equal spacing between editing rows.
 - **Undo and workspace controls:** Undo up to 50 actions. Hold Undo to clear the live workspace, or hold Load room to delete the saved room and its anchors. Clearing the workspace is undoable and preserves the saved room.
 - **Room persistence:** Save room geometry locally with a PICO spatial anchor and restore it after relocalization. Tracking loss hides anchored overlays and blocks placement; a failed load preserves the current workspace. Saved room geometry uses no cloud service or account.
 - **Visual preferences:** Choose from three presets, including a high-contrast option, and retain input, handedness, units, and wrist-gesture preferences between sessions.
-- **Snapshots:** Capture overlays through the PICO Platform Highlight API on Android, with the menu and pointer hidden. Requires a configured PICO Platform app ID. Passthrough capture, Gallery visibility, and phone access still require device verification.
+- **Hide menu:** Hide the menu and pointers before using the headset's capture feature. Release and select again to restore the menu without placing an item; dwell users get automatic restoration after eight seconds. In-app snapshots were removed because this build has no PICO Platform app ID and no verified supported alternative for triggering the native passthrough capture. No snapshot timer is exposed.
 - **Editor preview:** Try the tools in an explicitly simulated room in Unity Play Mode. This room is excluded from headset runtime.
 
 Measurements depend on room scanning and tracking quality. Physical measurement accuracy, hand ergonomics, stereo presentation, and anchor relocalization require acceptance testing on the target headset. Fit Check uses constrained placement rather than a free-falling furniture simulation. Picture Hanging uses the hanger inset you provide; it does not infer wire sag or fastener suitability.
@@ -32,15 +32,50 @@ Measurements depend on room scanning and tracking quality. Physical measurement 
 3. Press Play for the simulated desktop room, or select **PICO > Project > Build Development APK** for Android. Keep the Android build target and configure signing credentials in Unity when required.
 4. Find the APK at `Builds/Android/spatial-toolkit.apk`. The build helper records its result in `Logs/AndroidBuildResult.json`.
 
-Desktop controls: left click places or selects, right drag moves an item, **Z** undoes, **B** toggles snapping, and the mouse wheel changes pointer reach. Click a dimension row to enter a value.
+Desktop controls: left click places or selects, right drag moves an item, **Z** undoes, **B** toggles snapping, and the mouse wheel changes pointer reach. Click and release a dimension row to enter a value, or hold and drag left/right to adjust it.
 
-Controller controls: dominant trigger places or selects, grip drags, **A/X** undoes, **B/Y** toggles snapping, and thumbstick up/down changes pointer reach. Pinch selects with hands; hold a pinch on an item to drag, then release to drop. Menu controls expose the tools and editing actions without controller shortcuts.
+Controller controls: the selected hand's trigger places new measurements; either trigger selects UI or placed items, and grip drags. **A/X** undoes, **B/Y** toggles snapping, thumbstick up/down changes pointer reach, and left/right turns the live Fit preview or selected Fit box at a constant **30 degrees per second** without snapping. Before placement, only the selected main hand's stick rotates the preview. Pinch selects with either hand; hold a pinch on an item to drag, then release to drop. Twist a single pinched wrist for 15-degree Fit rotation, or grab the same box with both hands for continuous rotation without scaling. Releasing either hand continues the grab with the remaining hand. Reach controls are in Settings. The Left/Right selection also resets the menu to the other wrist.
 
 See [SETUP.txt](SETUP.txt) for MR configuration, emulator and device installation, controller-free operation, and command-line helpers. See [APP-NOTES.txt](APP-NOTES.txt) for implementation details and historical verification records; the changelog below describes subsequent changes to earlier behavior.
 
 ## Changelog
 
-All five numbered builds recorded to date are listed newest first. Changes and verification below are reconstructed from the repository's implementation notes and build records. Verification counts describe checks recorded for those builds, rather than tests rerun for this README.
+All eight numbered builds recorded to date are listed newest first. Earlier changes and verification are reconstructed from the repository's implementation notes and build records. Verification counts describe checks recorded for each build.
+
+### 0.4.2 — Thumbstick rotation before Fit placement
+
+Android version code **8**.
+
+- Added constant 30-degree-per-second thumbstick rotation to the live Fit preview, without snapping. The selected main hand controls the preview angle, including while the off-hand holds a dimension drag beyond the menu. Selected-box and grabbed-box rotation remain available.
+- Placement now preserves the preview's exact world orientation, including when the saved room anchor is rotated. Preview overlap warnings, blocked-placement status, and final placement checks all use that rotation instead of an axis-aligned box. Rotating a preview creates no placed-item undo record.
+- Updated the documented controller controls. Verification: **359 automated checks passed**: the existing 337 checks plus 22 preview-rotation checks covering both main hands, direction and speed, snapping independence, off-hand dimension dragging, exact placement orientation, rotated wall collision, and rotated room anchors. Editor and Android C# compilation passed. No emulator run was performed for this patch.
+- Android APK built successfully on its first attempt and installed on the connected Swan headset. Verified installed version **0.4.2 / code 8**, a successful cold launch, and the foreground resumed activity. The sampled startup log (`Logs/Toolkit042Startup.log`) contains no Unity/AndroidRuntime error entries; previously observed native extension/scheduler diagnostics remain. Physical controller acceptance of preview rotation still requires headset testing.
+
+### 0.4.1 — Main-hand preview ownership fix
+
+Android version code **7**.
+
+- Fixed unplaced previews jumping to the off-hand's surface when a held dimension drag leaves the menu. Preview surface sampling now uses the selected main hand independently of the captured editing hand. Off-hand drags remain active beyond the entire panel until release; dimensions continue updating the preview live, and moving the main hand still moves that preview.
+- Applied main-hand preview ownership across the tools and preserved the interaction ray and surface target used for editing placed items. Release returns to normal interaction without an accidental placement.
+- Restricted new placement and unplaced previews to the selected main hand, including when the input reader temporarily falls back to the other tracked hand. Existing-item and menu interaction with either hand and hands-free dwell remain available.
+- Verification: **337 automated checks passed**, including 100 new preview-ownership checks across left/right main hands, controller/pinch input, and unplaced Fit/Hang tools; the 237 existing geometry, input, editing, selection, room, and full placement/save/restore workflow checks also passed. Editor and Android C# compilation passed. No emulator run was performed for this patch.
+- Android APK built successfully on its first attempt, then installed on the connected Swan headset. Verified installed version **0.4.1 / code 7**, a successful cold launch, and the app's foreground resumed activity. The sampled startup log (`Logs/Toolkit041Startup.log`) has no Unity/AndroidRuntime error entries; vendor controller-resource JSON warnings and native extension/scheduler diagnostics are present. Physical acceptance of off-hand dragging beyond the menu still requires headset testing.
+
+### 0.4.0 — Two-hand interaction and precision editing
+
+Android version code **6**.
+
+- Added independent input sampling for both hands/controllers. Left/Right still selects the placement hand and opposite menu wrist. Either hand can select UI, nodes, and placed objects; the off-hand ray and dot appear over interactable targets, including in wrist mode. Eye/head pinch accepts either hand. One hand owns each interaction through release, and a second hand can join a Fit box grab.
+- Added continuous, rigid two-hand Fit rotation without scaling. Both simultaneous pinches and later second-hand grabs work. Releasing one hand transfers the grab to the remaining hand without a position jump. Fit boxes stay upright, maintain floor contact, and retain collision checks.
+- Added constant 30-degree-per-second thumbstick left/right rotation without snapping, including during controller grabs. A sustained selected-box rotation is one undo step.
+- Replaced hand-forward yaw with wrist twist around the captured pinch ray, with 15-degree steps and a small hysteresis band to reduce jitter. Single-hand pinch rotation snaps regardless of placement snapping.
+- Moved Fit rotation buttons above Delete in the selected box's panel. Width, Height, Depth, Rotate, and Delete use equal gaps, with a larger separation before the persistent controls. Moved Reach from Controls to Settings.
+- Added tap-and-release keypad entry and hold-and-drag dimension editing. Hold 0.25 seconds, then drag horizontally for millimeter adjustments. Selected objects and placement previews update live; a whole drag is one undo step. Focus or tracking loss cancels unfinished edits, and overlap checks still reject invalid Fit sizes.
+- Added a gravity-aligned wall-grid preview for Level, retaining its wall pose while the menu is targeted. Fit previews also retain their floor pose while dimensions are edited in the menu.
+- Set gaze/dwell dot alpha to 0.6. Hand switching now clears floating/pinned and cached wrist state and attaches the menu to the new wrist immediately.
+- Replaced the nonworking snapshot action with **Hide menu**, removing its Platform capture code and avoiding a nonfunctional Snapshot Timer. The installed Highlights API requires Platform initialization, and `Assets/Resources/PXR_PlatformSetting.asset` has no app ID. No supported equivalent of the native passthrough capture was verified for this consumer build; Enterprise capture and developer/ADB capture are not shipped as app workarounds. Use the headset capture feature while the menu is hidden. Release and select to restore without placing; dwell restores after eight seconds.
+- Verification: **237 automated checks passed**: 18 geometry, 28 input replay, 33 menu/path, 42 selection/menu drag, 14 hand/menu, 43 room/selection feedback, 45 new dual-hand/dimension checks, and 14 full interactive workflow checks. Updated the legacy yaw replay to test the newly requested wrist twist. Editor and Android C# compilation passed. Rendered and inspected the selected Fit menu's control layout.
+- Android APK built successfully on its first attempt. Installed on the connected Swan headset and verified installed version **0.4.0 / code 6**. Cold launch returned `Status: ok`, and the app was the foreground resumed activity. No Unity/AndroidRuntime errors or exceptions were found in the sampled process startup log (`Logs/Toolkit040Startup.log`). Native runtime also emitted unsupported FB triangle-mesh entry-point probes and scheduler diagnostics, which are present in the earlier `Logs/PicoDeviceRuntime.log` too. Physical headset acceptance of gesture feel, two-hand ergonomics, placement accuracy, and native screenshots with the menu hidden remains outstanding. No emulator run was performed for this update.
 
 ### 0.3.2 — Room controls and selection feedback
 

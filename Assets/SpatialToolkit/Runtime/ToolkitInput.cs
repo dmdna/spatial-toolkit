@@ -13,7 +13,8 @@ namespace SpatialToolkit
         public bool VisualOriginTracked;
         public Vector3 VisualRayOrigin;
         public bool Gesture, HandRay, Gaze, Dwell, MenuOnly, SourceChanged, PinchHeld, AlignmentTracked;
-        public float DepthDelta;
+        public float DepthDelta, RotateAxis;
+        public bool LeftHand;
         public Vector3 Position, Up, Forward, AlignmentForward, PalettePosition, PaletteUp;
         public Quaternion Rotation, PaletteRotation;
         public bool PaletteTracked;
@@ -28,9 +29,13 @@ namespace SpatialToolkit
         Vector3 heldPosition;
         public bool LeftHanded;
         public ToolkitInputMode Mode;
-        readonly ToolkitTrackedHands hands = new ToolkitTrackedHands();
+        readonly ToolkitTrackedHands hands;
+        readonly bool ownsHands;
+        public bool AllowFallback = true;
+        public ToolkitInput(ToolkitTrackedHands sharedHands = null) { ownsHands = sharedHands == null; hands = sharedHands ?? new ToolkitTrackedHands(); }
+        public ToolkitInput CreateSecondary() => new ToolkitInput(hands) { AllowFallback = false };
         public void Reset() { previousSource = null; blocked = true; wasTracked = false; }
-        public void Dispose() { hands.Dispose(); }
+        public void Dispose() { if (ownsHands) hands.Dispose(); }
 
         public ToolInput Read(Transform head, Transform trackingOrigin, Camera desktopCamera)
         {
@@ -39,30 +44,31 @@ namespace SpatialToolkit
             var state = new ToolInput { Rotation = Quaternion.identity, Source = "Tracking unavailable" };
             bool trigger = false, grip = false, undo = false, snap = false, pin = false;
             bool controller = Mode == ToolkitInputMode.Automatic && hands.ControllersActive && ControllerPose(dominant, trackingOrigin, out state.Position, out state.Rotation);
-            if (!controller && Mode == ToolkitInputMode.Automatic && hands.ControllersActive && ControllerPose(palette, trackingOrigin, out state.Position, out state.Rotation))
+            if (!controller && AllowFallback && Mode == ToolkitInputMode.Automatic && hands.ControllersActive && ControllerPose(palette, trackingOrigin, out state.Position, out state.Rotation))
             { var missing = dominant; dominant = palette; palette = missing; controller = true; }
             if (controller)
             {
                 state.Tracked = state.AlignmentTracked = true;
                 state.Source = (dominant.characteristics & InputDeviceCharacteristics.Left) != 0 ? "Left controller" : "Right controller";
+                state.LeftHand = state.Source == "Left controller";
                 dominant.TryGetFeatureValue(CommonUsages.triggerButton, out trigger);
                 dominant.TryGetFeatureValue(CommonUsages.gripButton, out grip);
                 dominant.TryGetFeatureValue(CommonUsages.primaryButton, out undo);
                 dominant.TryGetFeatureValue(CommonUsages.secondaryButton, out snap);
                 dominant.TryGetFeatureValue(CommonUsages.primary2DAxis, out var stick);
                 state.DepthDelta = stick.y * Time.unscaledDeltaTime * 1.5f;
+                state.RotateAxis = Mathf.Abs(stick.x) > 0.2f ? Mathf.Sign(stick.x) : 0;
                 state.PaletteTracked = ControllerPose(palette, trackingOrigin, out state.PalettePosition, out state.PaletteRotation);
-                if (state.PaletteTracked) palette.TryGetFeatureValue(CommonUsages.triggerButton, out pin);
                 state.Ray = new Ray(state.Position + state.Rotation * Vector3.forward * 0.04f, state.Rotation * Vector3.forward);
                 state.AlignmentForward = state.Ray.direction;
             }
             else if (XRSettings.isDeviceActive)
             {
-                state = hands.Read(head, trackingOrigin, LeftHanded, Mode, previousSource);
+                state = hands.Read(head, trackingOrigin, LeftHanded, Mode, previousSource, AllowFallback);
                 trigger = grip = state.PinchHeld;
             }
 #if UNITY_EDITOR
-            else if (desktopCamera && Mouse.current != null)
+            else if (AllowFallback && desktopCamera && Mouse.current != null)
             {
                 state.Tracked = state.AlignmentTracked = true; state.Source = "Desktop";
                 state.Ray = desktopCamera.ScreenPointToRay(Mouse.current.position.ReadValue());

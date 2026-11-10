@@ -44,8 +44,8 @@ public static partial class ToolkitFeatureChecks
             Set("state", state); var handle = app.RoomRoot.GetComponentsInChildren<ToolkitHandle>().First(h => h.ItemId == box.id);
             Invoke("BeginGrabHandle", handle); Vector3 original = box.position;
             Set("validSurface", true); Set("target", app.RoomRoot.TransformPoint(box.position) - Vector3.up * 0.4f); Set("targetNormal", Vector3.up);
-            state.Rotation = Quaternion.Euler(0, 60, 0); state.Forward = state.Rotation * Vector3.forward; Set("state", state); Call("UpdateGrab");
-            check(Vector3.Distance(original, box.position) < 0.0001f && Quaternion.Angle(box.rotation, Quaternion.identity) > 55, "A held Fit box rotates sixty degrees without changing its translation");
+            state.Rotation = Quaternion.AngleAxis(60, state.Ray.direction); state.Forward = state.Rotation * Vector3.forward; Set("state", state); Call("UpdateGrab");
+            check(Vector3.Distance(original, box.position) < 0.0001f && Quaternion.Angle(box.rotation, Quaternion.identity) > 55, "A held Fit box follows a sixty-degree wrist twist without changing its translation");
             Invoke("CancelGrab", true); FreshItems();
 
             app.Preferences.wristGestureDisabled = true; palette.ResetWristPose();

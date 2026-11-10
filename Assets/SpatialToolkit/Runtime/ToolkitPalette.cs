@@ -29,7 +29,11 @@ namespace SpatialToolkit
             controls = false; editing = null; minimized = page == "minimize";
             Rebuild();
         }
-        public void ResetWristPose() { pinned = false; fallbackPlaced = false; }
+        public void ResetWristPose()
+        {
+            CancelMenuDrag(); pinned = false; fallbackPlaced = false; AttachedToWrist = false;
+            wristLastSeen = -10; lastWristUp = Vector3.zero; inputSource = null;
+        }
         public void UndoHold(float progress, bool loading)
         {
             if (undoLabel) { undoLabel.text = loading ? "Clear All (Hold)" : "Undo"; undoLabel.fontSize = loading ? 17 : 23; }
@@ -119,7 +123,7 @@ namespace SpatialToolkit
                 Button(panel.transform, new Vector2(-225 + i * 150, 240), new Vector2(138, 64), titles[i], "tool:" + i,
                     (int)app.Tool == i ? ToolkitVisuals.Mint : ToolkitVisuals.Button);
             var selection = app.Selection;
-            float y = selection != null && app.Tool == ToolkitTool.Hang ? 165 : selection != null ? 130 : 155;
+            float y = selection != null && app.Tool == ToolkitTool.Fit ? 175 : selection != null && app.Tool == ToolkitTool.Hang ? 165 : selection != null ? 130 : 155;
             if (selection != null && SpatialToolkitApp.IsPath(selection))
             {
                 BuildPathEdit(panel.transform);
@@ -133,8 +137,13 @@ namespace SpatialToolkit
             else if (app.Tool == ToolkitTool.Fit)
             {
                 Row("Width", app.FurnitureDimensions.x, y, "width");
-                Row("Height", app.FurnitureDimensions.y, y - 65, "height");
-                Row("Depth", app.FurnitureDimensions.z, y - 130, "depth");
+                Row("Height", app.FurnitureDimensions.y, y - 60, "height");
+                Row("Depth", app.FurnitureDimensions.z, y - 120, "depth");
+                if (selection != null)
+                {
+                    Button(panel.transform, new Vector2(-140, y - 180), new Vector2(265, 48), "Rotate -15°", "rotate:-1");
+                    Button(panel.transform, new Vector2(140, y - 180), new Vector2(265, 48), "Rotate +15°", "rotate:1");
+                }
                 if (selection == null) ToolkitVisuals.Text(panel.transform, new Vector2(550, 60), new Vector2(0, y - 210), (app.DwellInput ? "Dwell to place or pick up; dwell again to drop." : app.HandsInput ? "Pinch floor to place. Pinch a box and drag." : "Trigger on floor to place. Grip to move.") + "\nBlocked placements show an overlap warning.", 21, Color.white);
             }
             else if (app.Tool == ToolkitTool.Hang)
@@ -155,7 +164,7 @@ namespace SpatialToolkit
             }
             if (selection != null && !SpatialToolkitApp.IsPath(selection))
             {
-                Button(panel.transform, new Vector2(0, app.Tool == ToolkitTool.Fit ? -105 : -112), new Vector2(260, app.Tool == ToolkitTool.Fit ? 40 : 32), "Delete", "delete");
+                Button(panel.transform, new Vector2(0, app.Tool == ToolkitTool.Fit ? y - 240 : -112), new Vector2(260, app.Tool == ToolkitTool.Fit ? 48 : 32), "Delete", "delete");
             }
             Button(panel.transform, new Vector2(-190, -155), new Vector2(175, 50), "Undo", "undo");
             Button(panel.transform, new Vector2(0, -155), new Vector2(175, 50), app.Preferences.imperial ? "Feet / inches" : "Meters", "units");
@@ -163,7 +172,7 @@ namespace SpatialToolkit
             Button(panel.transform, new Vector2(-190, -220), new Vector2(175, 55), app.Snapping ? "Snap on" : "Snap off", "snap");
             Button(panel.transform, new Vector2(0, -220), new Vector2(175, 55), "Save room", "save");
             Button(panel.transform, new Vector2(190, -220), new Vector2(175, 55), "Load room", "load");
-            Button(panel.transform, new Vector2(-140, -285), new Vector2(265, 55), "Take snapshot", "snapshot", ToolkitVisuals.Lavender);
+            Button(panel.transform, new Vector2(-140, -285), new Vector2(265, 55), "Hide menu", "hidemenu", ToolkitVisuals.Lavender);
             Button(panel.transform, new Vector2(145, -285), new Vector2(265, 55), "Controls", "controls");
             status = ToolkitVisuals.Text(panel.transform, new Vector2(560, 65), new Vector2(0, -350), app.Status, 21, ToolkitVisuals.Mint);
         }
@@ -210,7 +219,10 @@ namespace SpatialToolkit
             Button(panel, new Vector2(-225, -85), new Vector2(70, 54), "<", "colors:-1");
             ToolkitVisuals.Text(panel, new Vector2(340, 54), new Vector2(0, -85), "Option " + (app.Preferences.colorOption + 1), 27, ToolkitVisuals.Mint);
             Button(panel, new Vector2(225, -85), new Vector2(70, 54), ">", "colors:1");
-            Button(panel, new Vector2(0, -180), new Vector2(540, 58), "About", "about");
+            Button(panel, new Vector2(-190, -160), new Vector2(175, 48), "Reach -", "reach:-1");
+            ToolkitVisuals.Text(panel, new Vector2(175, 48), new Vector2(0, -160), app.Reach.ToString("0.0") + " m", 24, Color.white);
+            Button(panel, new Vector2(190, -160), new Vector2(175, 48), "Reach +", "reach:1");
+            Button(panel, new Vector2(0, -220), new Vector2(540, 48), "About", "about");
         }
         void AddHitTarget(Image image, string action, Vector2 size, float depth = 8)
         {
@@ -243,13 +255,7 @@ namespace SpatialToolkit
             string help = app.DwellInput ? "Hold focus 1.3 s; button brightens. Look away to repeat.\nDwell on item to move; dwell on surface to drop." :
                 app.HandsInput ? "Pinch selects. Hold a pinched item and move to drag.\nRelease to drop. Look elsewhere without losing the item." : "Trigger selects. Grip moves. A/X undo. B/Y snap.";
             ToolkitVisuals.Text(panel, new Vector2(550, 65), new Vector2(0, -15), help, 21, Color.white);
-            Button(panel, new Vector2(-190, -85), new Vector2(175, 48), "Reach -", "reach:-1");
-            ToolkitVisuals.Text(panel, new Vector2(175, 48), new Vector2(0, -85), app.Reach.ToString("0.0") + " m", 24, Color.white);
-            Button(panel, new Vector2(190, -85), new Vector2(175, 48), "Reach +", "reach:1");
-            Button(panel, new Vector2(-140, -145), new Vector2(265, 48), "Rotate -15°", "rotate:-1");
-            Button(panel, new Vector2(140, -145), new Vector2(265, 48), "Rotate +15°", "rotate:1");
-            Button(panel, new Vector2(-140, -205), new Vector2(265, 48), "Delete selected", "delete");
-            Button(panel, new Vector2(140, -205), new Vector2(265, 48), pinned ? "Unpin menu" : "Pin menu", "pin");
+            Button(panel, new Vector2(0, -145), new Vector2(540, 48), pinned ? "Unpin menu" : "Pin menu", "pin");
             Button(panel, new Vector2(0, -280), new Vector2(555, 55), "Back to tools", "controls", ToolkitVisuals.Lavender);
         }
         void Row(string label, float value, float y, string action)
@@ -257,6 +263,15 @@ namespace SpatialToolkit
             Button(canvas.transform, new Vector2(-245, y), new Vector2(55, 48), "−", action + ":-1");
             Button(canvas.transform, new Vector2(0, y), new Vector2(420, 48), label + "   " + ToolkitGeometry.Distance(value, app.Preferences.imperial), "edit:" + action);
             Button(canvas.transform, new Vector2(245, y), new Vector2(55, 48), "+", action + ":1");
+        }
+        public void RefreshDimension(string key, float value)
+        {
+            foreach (var action in GetComponentsInChildren<ToolkitPaletteAction>())
+            {
+                if (action.Action != "edit:" + key) continue;
+                var text = action.GetComponentInChildren<Text>();
+                if (text) text.text = text.text.Split(new[] { "   " }, System.StringSplitOptions.None)[0] + "   " + ToolkitGeometry.Distance(value, app.Preferences.imperial);
+            }
         }
         public void BeginNumeric(string property, float meters)
         {
@@ -320,7 +335,9 @@ namespace SpatialToolkit
         public void UpdatePose(ToolInput input, Transform head)
         {
             if (!canvas) return;
+            if (app.MenuHidden) { canvas.gameObject.SetActive(false); return; }
             FacePlayer(head);
+            bool freshPose = inputSource == null;
             if (inputSource != input.Source) { inputSource = input.Source; Rebuild(); }
             if (input.PaletteTracked) { wristLastSeen = Time.unscaledTime; lastWristUp = input.PaletteUp; }
             bool wristGrace = AttachedToWrist && !input.PaletteTracked && Time.unscaledTime - wristLastSeen < 0.7f && !input.Dwell;
@@ -336,7 +353,7 @@ namespace SpatialToolkit
                 if (!wrist && fallbackPlaced && Vector3.Distance(transform.position, head.position) < 1.8f) { if (status) status.text = app.Status; return; }
                 Vector3 target = wrist ? input.PalettePosition + Vector3.up * 0.25f + (input.PalettePosition - head.position).normalized * 0.10f :
                     head.position + head.forward * 0.8f + head.right * (input.MenuOnly ? 0 : -0.32f);
-                transform.position = wrist ? Vector3.Lerp(transform.position, target, 1 - Mathf.Exp(-18 * Time.unscaledDeltaTime)) : target;
+                transform.position = wrist && !freshPose ? Vector3.Lerp(transform.position, target, 1 - Mathf.Exp(-18 * Time.unscaledDeltaTime)) : target;
                 Vector3 facing = transform.position - head.position;
                 if (facing.sqrMagnitude > 0.01f) transform.rotation = ToolkitVisuals.UprightRotation(facing, transform.rotation);
                 fallbackPlaced = !wrist;

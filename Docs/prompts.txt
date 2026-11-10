@@ -112,3 +112,20 @@ That works! Some more bug fixes:
 * There seems to be a bug after saving a room where a Measurement node was still active but remained invisible until a second node was placed. This persisted even after everything was undo'd and cleared all. 
 
 Then when you are done, build and open on the headset as usual, updating version number as appropriate. Do not worry about the github/version control. I am taking care of it manually.
+
+Eighth Prompt:
+
+Going good so far! Here are the next few things I want in the app:
+* The snapshots feature does not work. It always tells me to use the headset's capture feature. Find a way to fix it, I want the user to select the button, then they see a 3-second countdown indicator and the menu to hide. After the 3 seconds, take the snapshot automatically as if they did use the headset snapshot feature. First figure out if it's possible to code a way to automatically take a snapshot as if they use the device's feature. If it is: fix it so it happens with the described behavior, and also, add a Snapshot Timer to the Settings page, default at 3 seconds, the options being Instant, 1 second,  2 seconds, 3 seconds, and keep increasing by 1 up to 10 seconds. If there is no way to code a way to take a screenshot, then remove the feature all together and make the take snapshot a Hide menu button. Inform me of which decision was taken.
+* Allow the user to move the thumbstick of the controller left and right to serve as rotate 15 degrees, just like the buttons in the Controls menu do.
+* Speaking of these buttons, they should not be in the control menu. Since they only apply to a selected Fit check box, make them appear just above the Delete button of the fit check box. While you're at it, make slight adjustments in the spacings, as the delete button seems too close to the buttons below and not the measurement controls up top. I'm aware you are about to add more controls to that space, but make sure ALL controls (height, width, depth, rotate, and delete) are at equal distance gaps from each other, with a slightly larger gap between Delete and the persistent controls below (hand, undo, etc)
+* The level grid should be previewed on the wall in a similar way to how the Hang preview behaves
+* I want a new interaction for changing the measurements: select, hold and drag. Similar to the Unity Editor, I want the user to, if they select/pinch and hold instead of just selecting, they can drag left and right to decrease and increase the value smoothly and precisely. Any live previews that may be present should update accordingly. if the user presses and lets go immediately, keep the current behavior of bringing up a keypad.
+* The dot indicator for eye gaze should be more translucent when users are closer to it. Make it 0.6 alpha so that users can still read any text the indicator dot may be covering
+* Found a bug where changing hands with the button in the main menu does not reset the anchoring of the menu. It instead starts to float. Ensure that changing hands in the menu switches the menu from one hand's anchor to the other.
+* The Reach selection should not be in the Controls menu, it should be in the Settings Menu
+* Allow for 2-handed controls, more details below:
+	* Maintain the Left/Right hand selection. This should dictate which hand will be used for the measurement placement (and which hand is the off-hand)
+	* While not in wristwatch mode, both hands should be able to interact with the UI and with placed measurements. The off-hand should also have ray and dot indicator, but only if aimed at an iteractable (UI, placed measurement node/block, etc)
+	*  In wrist mode, the offhand will still have the anchored menu. Same rule applies, if the hand aims at a measurement, show the same ray and dot indicator and allow for interaction.
+	* In eye gaze mode with hand controls, both hands should be able to pinch, select, drag, etc.

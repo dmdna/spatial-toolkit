@@ -35,7 +35,7 @@ namespace SpatialToolkit
         void ApplySelectionVisual(ToolkitSelectionVisual visual)
         {
             string id = visual.TargetId; int node = visual.TargetNode;
-            visual.SetState(id == selectedId && node == selectedNode, id == hoverId && node == hoverNode);
+            visual.SetState(id == selectedId && node == selectedNode, id == hoverId && node == hoverNode || id == otherHoverId && node == otherHoverNode);
         }
     }
 

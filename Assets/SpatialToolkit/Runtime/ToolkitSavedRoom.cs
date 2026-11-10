@@ -38,7 +38,7 @@ namespace SpatialToolkit
         }
         async void DeleteSavedRoom()
         {
-            if (busy || captureBusy) return;
+            if (busy) return;
             busy = true;
             Message("Deleting saved room…", 30);
             try
