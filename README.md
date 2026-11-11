@@ -4,7 +4,7 @@
 
 Spatial Toolkit is a mixed reality workbench for measuring and planning changes to a physical room. It overlays measurement paths, furniture-sized boxes, picture layouts, and level guides on PICO video passthrough, using the scanned room mesh for surface placement and collision checks.
 
-The app targets **PICO OS 6 / Project Swan** through Unity's native PICO XR runtime on Android. The current build is **0.4.2 (Android version code 8)**. It is developed with **Unity 6000.3.11f1**. The project uses `picoxr` mode; Spatial Adapter is also installed, but this app runs in PICO XR mode.
+The app targets **PICO OS 6 / Project Swan** through Unity's native PICO XR runtime on Android. The current build is **0.4.5 (Android version code 11)**, installed and startup-verified on the connected Swan headset. It is developed with **Unity 6000.3.11f1**. The project uses `picoxr` mode; Spatial Adapter is also installed, but this app runs in PICO XR mode.
 
 Created by **Diego Medina Molina and the PICO Vibe Lab**.
 
@@ -13,7 +13,7 @@ Created by **Diego Medina Molina and the PICO Vibe Lab**.
 - **Smart Measure:** Place connected measurement nodes on scanned surfaces, read segment lengths, and close planar outlines to calculate area. Supports concave outlines, node editing, and metric or imperial units. Invalid or nonplanar areas are rejected.
 - **Fit Check:** Enter exact furniture width, height, and depth, then place, rotate, drag, or resize a translucent box in the room. The selected main hand owns the placement preview, even while the off-hand holds and drags a dimension beyond the menu. Its thumbstick rotates the preview smoothly before placement; the placed box keeps that exact orientation. Collision checks reject overlapping placements and resizes; blocked drag previews turn red.
 - **Picture Hanging:** Preview and place groups of one to eight equal-sized frames with exact dimensions, spacing, and hanger inset. Frame outlines and individual nail crosshairs update as values change.
-- **Level & Plumb:** Preview a gravity-aligned grid on a wall before placing it and connected paths with horizontal and vertical angle readouts. Controller orientation or approximate finger alignment supplies the live level reference; the app does not automatically recognize physical object edges.
+- **Level & Plumb:** Automatically preview and place a wall grid or horizontal grid according to the pointed surface, with connected paths and angle readouts. Horizontal grids start aligned to a nearby scanned vertical face when available, rotate like Fit Check, and include a 1.2 m center plumb line plus two vertical half-grids. The half-grids fade smoothly when viewed edge-on and remain more transparent than the floor grid. Wall grids retain their gravity alignment. Controller orientation or approximate finger alignment supplies the live level reference; the app does not automatically recognize physical object edges.
 - **Flexible input:** Use controllers, native hand rays, eye gaze with pinch, head aim with pinch, or hands-free dwell. The selected hand places new measurements; both hands can operate menus and select or drag placed items. The off-hand pointer appears over interactable targets, including in wrist mode. Two hands rotate a Fit box smoothly without scaling it; single-hand wrist twists rotate in 15-degree steps. Eye input depends on supported hardware, calibration, and permission. Gaze dots use 0.6 alpha to keep covered text readable.
 - **Wrist and floating menus:** Reveal the wrist palette with a wristwatch gesture, pin it in space, or minimize it to a compact bar. Floating panels can be dragged from their header or compact background and stay upright facing the user.
 - **Selection and editing:** Select placed items to edit their values, drag nodes and objects, delete individual items, or start new paths from existing nodes. Tap and release a dimension row for the keypad, or hold for 0.25 seconds and drag horizontally for millimeter adjustments with live previews. One complete drag is one undo step. Fit rotation buttons appear above Delete in the selected box's editing panel, with equal spacing between editing rows.
@@ -38,9 +38,43 @@ Controller controls: the selected hand's trigger places new measurements; either
 
 See [SETUP.txt](SETUP.txt) for MR configuration, emulator and device installation, controller-free operation, and command-line helpers. See [APP-NOTES.txt](APP-NOTES.txt) for implementation details and historical verification records; the changelog below describes subsequent changes to earlier behavior.
 
+When another input mode is selected, pressing a trigger, grip, face button, menu button, or thumbstick click on either controller automatically selects and saves **Auto/controllers**. The recovery press is suppressed until release to prevent an accidental placement, grab, or shortcut. Connecting a controller or moving its stick alone does not change the selected mode. System-reserved buttons are handled by the headset and may not reach the app.
+
 ## Changelog
 
-All eight numbered builds recorded to date are listed newest first. Earlier changes and verification are reconstructed from the repository's implementation notes and build records. Verification counts describe checks recorded for each build.
+All eleven numbered builds recorded to date are listed newest first. Earlier changes and verification are reconstructed from the repository's implementation notes and build records. Verification counts describe checks recorded for each build.
+
+### 0.4.5 — Horizontal Level grids
+
+Android version code **11**.
+
+- Level automatically switches its preview between wall and horizontal surfaces. A placed horizontal grid retains its linked angle path, floor pose, and rotation in saved-room data; older saved grids remain wall grids.
+- Added a 1.2 m square floor grid with a 1.2 m center plumb line and two perpendicular vertical half-grids. Vertical grid lines use a maximum alpha of 0.12 and smoothly fade to zero as the viewing direction approaches their plane. The existing wall-grid geometry is unchanged.
+- Initial horizontal heading uses the nearest vertical face found by sixteen raycasts through the same scanned-room colliders used for placement, within 8 m. App-owned geometry is ignored. Without a suitable face, the room coordinate frame supplies the heading. This is a geometric best effort and may follow furniture or another vertical scanned face instead of a structural wall.
+- Horizontal grids share Fit Check's rotation controls: main-hand thumbstick before placement; thumbstick or 15-degree menu steps after selection; single-hand wrist twists while dragging; and continuous two-hand rotation. Moving the grid also moves the linked first path node. New paths started from a horizontal node retain its grid type.
+- Verification before the APK build: **412 automated checks passed** in Unity Play Mode: 213 horizontal Level checks, 132 existing menu/path/selection/hand/room-feedback checks, 45 dual-hand/dimension checks, and 22 Fit preview-rotation checks. Coverage includes automatic switching, room-wall alignment, exact preview placement under a rotated anchor, both main hands, grip/pinch/two-hand rotation, save-data round-trip, older saves, wall-grid regression, and orbit-dependent fading. Unity Editor and Android C# compilation passed; the standalone Android compile retained its netstandard assembly-version assumption warning. Reviewed a rendered floor grid (`.tools/checks/horizontal-level-review.png`); the Unity Console had no errors. No emulator run was performed.
+- Android development APK built successfully on its first attempt for this feature (`Logs/AndroidBuildResult.json`, succeeded at **2026-11-11T23:38:10Z**). Unity reported SDK configuration, controller-prefab, shader, native-audio alignment, and desktop-only USD warnings; the recorded build outcome is succeeded.
+- Installed **0.4.5 / code 11** on the connected Swan headset. Verified the installed version, a successful cold launch, a running process, and the foreground resumed activity. The sampled startup log (`Logs/Toolkit045Startup.log`) contains no Unity/AndroidRuntime error entries; native/vendor diagnostics remain. Physical headset acceptance of horizontal placement, scanned-room alignment, rotation, and stereo fading is still outstanding.
+
+### 0.4.4 — Additional build of controller and wrist-menu fixes
+
+Android version code **10**.
+
+- A delayed build request from the previous device-build task executed after the directly invoked 0.4.3 build. It completed successfully before the horizontal Level source edits, so it contains the controller recovery and wrist-menu fixes from 0.4.3, without the horizontal Level feature.
+- Build record: `Logs/AndroidBuildResult.json`, succeeded at **2026-11-11T23:22:39Z**. Version record and Player Settings both report **0.4.4 / code 10**. This APK was not installed or tested on the headset; a subsequent device query still reported **0.4.3 / code 9**. No separate emulator run or physical acceptance was performed for this additional build.
+
+### 0.4.3 — Controller recovery and wrist menu stability
+
+Android version code **9**.
+
+- Fixed a brief wrist-menu size jump after selecting options: rebuilding the panel now retains its current scale and visibility until the next tracking update. Previously the rebuilt panel briefly used the floating-menu scale, making the wrist panel 25% larger for a frame. Hidden wrist panels also stay hidden when rebuilt.
+- Wrist-menu verification: reproduced the scale regression before the fix; all **28 palette rebuild checks passed** afterward in Unity Play Mode, covering navigation, Controls, keypad input, hidden-menu rebuilds, and floating-menu scale.
+
+- Controller button presses are checked independently of the selected input mode and the runtime's active input source. A new press on either controller restores Auto/controllers, saves that preference, refreshes Settings, and cancels any active interaction.
+- The recovery press cannot also place, grab, undo, or toggle snapping; controller actions rearm after release. Held buttons do not repeatedly override a manually selected mode.
+- Input verification: all **60 input replay checks passed** in Unity, including 32 new controller recovery checks. Unity Editor and Android C# compilation passed; the standalone Android compile emitted a netstandard assembly-version assumption warning. These checks and the 28 menu checks total **88 automated checks** for this patch. No emulator run was performed.
+- Android development APK built successfully on its first numbered attempt. Build warnings included PICO appID configuration, unused Spatial Adapter/Pipeline setup, a controller prefab missing script, shader diagnostics, native audio library alignment, and desktop-only USD support; the recorded build outcome is succeeded (`Logs/AndroidBuildResult.json`).
+- Installed on the connected Swan headset and verified **0.4.3 / code 9**, a successful cold launch, a running process, and the foreground resumed activity. The sampled startup log (`Logs/Toolkit043Startup.log`) contains no Unity/AndroidRuntime error entries. Native unsupported-extension/scheduler diagnostics and vendor controller-resource JSON warnings remain. Physical headset acceptance of controller recovery and wrist-menu stability is still outstanding.
 
 ### 0.4.2 — Thumbstick rotation before Fit placement
 

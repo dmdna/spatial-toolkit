@@ -22,7 +22,19 @@ namespace SpatialToolkit
         Color highlightTextColor;
         public bool Visible => canvas && canvas.gameObject.activeSelf;
         public void Initialize(SpatialToolkitApp owner) { app = owner; Build(); }
-        public void Rebuild() { Highlight(null, 0); undoLabel = loadLabel = null; undoProgress = loadProgress = null; if (canvas) { canvas.gameObject.SetActive(false); Destroy(canvas.gameObject); } Build(); }
+        public void Rebuild()
+        {
+            // Selections rebuild after UpdatePose. Keep the current presentation until
+            // the next pose sample instead of flashing the default floating-menu size.
+            Vector3 scale = canvas ? canvas.transform.localScale : Vector3.one * 0.0006f;
+            bool visible = !canvas || canvas.gameObject.activeSelf;
+            Highlight(null, 0);
+            undoLabel = loadLabel = null; undoProgress = loadProgress = null;
+            if (canvas) { canvas.gameObject.SetActive(false); Destroy(canvas.gameObject); }
+            Build();
+            canvas.transform.localScale = scale;
+            canvas.gameObject.SetActive(visible);
+        }
         public void Navigate(string page)
         {
             settings = page == "settings"; about = page == "about";
@@ -158,9 +170,10 @@ namespace SpatialToolkit
             }
             else
             {
-                ToolkitVisuals.Text(panel.transform, new Vector2(550, 120), new Vector2(0, y - 15), "Place wall nodes to measure line angles.\nDouble-press or select a node to finish.\nThe grid and line angles follow gravity.", 24, Color.white);
+                ToolkitVisuals.Text(panel.transform, new Vector2(550, 120), new Vector2(0, y - 15), "Place wall or horizontal nodes for line angles.\nDouble-press or select a node to finish.\nHorizontal grids rotate like Fit check.", 24, Color.white);
                 Button(panel.transform, new Vector2(0, y - 115), new Vector2(260, 48), "Finish path", "finish");
-                ToolkitVisuals.Text(panel.transform, new Vector2(550, 70), new Vector2(0, y - 185), "The grid follows gravity.\nThe app does not track the physical object.", 21, ToolkitVisuals.Lavender);
+                if (app.Selection?.horizontalLevel == true) BuildLevelRotation(panel.transform, y - 185);
+                else ToolkitVisuals.Text(panel.transform, new Vector2(550, 70), new Vector2(0, y - 185), "The grid follows gravity.\nThe app does not track the physical object.", 21, ToolkitVisuals.Lavender);
             }
             if (selection != null && !SpatialToolkitApp.IsPath(selection))
             {
@@ -181,6 +194,12 @@ namespace SpatialToolkit
             ToolkitVisuals.Text(panel, new Vector2(540, 65), new Vector2(0, 120), "Node " + (app.SelectedNode + 1) + " selected\nHold and move to adjust its position.", 24, Color.white);
             Button(panel, new Vector2(-140, 15), new Vector2(260, 58), app.SelectedPathActive ? "Finish path" : "Start new path", app.SelectedPathActive ? "finish" : "startpath");
             Button(panel, new Vector2(140, 15), new Vector2(260, 58), "Delete", "delete");
+            if (app.RotationSelection?.horizontalLevel == true) BuildLevelRotation(panel, -65);
+        }
+        void BuildLevelRotation(Transform panel, float y)
+        {
+            Button(panel, new Vector2(-140, y), new Vector2(265, 48), "Rotate -15°", "rotate:-1");
+            Button(panel, new Vector2(140, y), new Vector2(265, 48), "Rotate +15°", "rotate:1");
         }
         void BuildPill(Transform panel, RectTransform rect)
         {

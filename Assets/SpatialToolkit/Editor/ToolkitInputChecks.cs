@@ -67,6 +67,24 @@ public static class ToolkitInputChecks
         sample.Ray = new Ray(Vector3.zero, Vector3.right);
         s = input.ResolveSample(sample, true, true);
         check(s.TriggerHeld && Vector3.Angle(s.Ray.direction, Vector3.forward) < 0.001f, "Hand-ray pinch captures direction so wrist rotation cannot swing the drag position");
+        check(!input.ResolveControllerButtons(0, 0), "Idle controllers do not request Auto");
+        for (int button = 0; button < 7; button++)
+        {
+            int mask = 1 << button;
+            check(input.ResolveControllerButtons(mask, 0), "Left controller button requests Auto: " + button);
+            check(!input.ResolveControllerButtons(mask, 0), "Held button does not override a later manual mode: " + button);
+            check(input.ResolveControllerButtons(mask, mask), "Right controller press detected while left remains held: " + button);
+            check(!input.ResolveControllerButtons(0, 0), "Release does not request Auto: " + button);
+        }
+        sample.Gesture = false; sample.Source = "Right controller";
+        input.Reset(true);
+        s = input.ResolveSample(sample, true, true, true, true, true);
+        check(!s.TriggerDown && !s.GripHeld && !s.Undo && !s.ToggleSnap && !s.PinMenu, "Auto recovery press cannot perform an action");
+        s = input.ResolveSample(sample, true, true, true, true, true);
+        check(!s.TriggerDown && !s.GripHeld && !s.Undo && !s.ToggleSnap && !s.PinMenu, "Recovery buttons remain suppressed while held");
+        input.ResolveSample(sample, false, false);
+        s = input.ResolveSample(sample, true, true, true, true, true);
+        check(s.TriggerDown && s.GripDown && s.Undo && s.ToggleSnap && s.PinMenu, "Release rearms controller actions after recovery");
         input.Dispose();
 
         var dwell = new ToolkitDwell();

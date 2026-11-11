@@ -172,23 +172,26 @@ namespace SpatialToolkit
         }
         void UpdateStickRotation()
         {
-            var item = Selection;
-            if (item == null && Tool == ToolkitTool.Fit && !grabbed && !busy && !MenuHidden)
+            var item = RotationSelection;
+            if (item == null && (Tool == ToolkitTool.Fit || Tool == ToolkitTool.Level && activePath == null && hasLevelPreviewPose && HorizontalLevelSurface(levelPreviewNormal)) && !grabbed && !busy && !MenuHidden)
             {
                 // Preview aim and rotation belong to the selected placement hand,
                 // including while the off-hand is editing dimensions.
                 var placement = frameSampled ? primaryState : state;
                 if (placement.Tracked && !placement.Gesture && (!frameSampled || HasPlacementSource))
-                    fitPreviewYaw = Mathf.Repeat(fitPreviewYaw + placement.RotateAxis * 30 * Time.unscaledDeltaTime, 360);
+                {
+                    if (Tool == ToolkitTool.Fit) fitPreviewYaw = Mathf.Repeat(fitPreviewYaw + placement.RotateAxis * 30 * Time.unscaledDeltaTime, 360);
+                    else { EnsureLevelHeading(levelPreviewPosition); levelPreviewYaw = Mathf.Repeat(levelPreviewYaw + placement.RotateAxis * 30 * Time.unscaledDeltaTime, 360); }
+                }
                 EndStickRotation(); return;
             }
             float axis = state.RotateAxis;
             if (frameSampled && !state.Gesture) axis = primaryState.RotateAxis != 0 ? primaryState.RotateAxis : offState.RotateAxis;
-            if (grabbed || dimensionKey != null || busy || MenuHidden || item?.kind != ToolkitItemKind.Furniture || axis == 0)
+            if (grabbed || dimensionKey != null || busy || MenuHidden || !RotatesUpright(item) || axis == 0)
             { EndStickRotation(); return; }
             beforeStick = beforeStick ?? JsonUtility.ToJson(Session);
             var rotation = Quaternion.AngleAxis(axis * 30 * Time.unscaledDeltaTime, Vector3.up) * RoomRoot.rotation * item.rotation;
-            if (Overlaps(RoomRoot.TransformPoint(item.position), item.dimensions, rotation, visuals[item.id].transform))
+            if (item.kind == ToolkitItemKind.Furniture && Overlaps(RoomRoot.TransformPoint(item.position), item.dimensions, rotation, visuals[item.id].transform))
             { Message("Rotation would overlap a surface."); return; }
             item.rotation = Quaternion.Inverse(RoomRoot.rotation) * rotation;
             RefreshMovedItem(item, false);
@@ -227,12 +230,13 @@ namespace SpatialToolkit
             if (!frameSampled) return false;
             var item = Session.items.Find(i => i.id == grabbed.ItemId);
             var other = OtherState;
-            if (item?.kind != ToolkitItemKind.Furniture) return false;
+            if (!RotatesUpright(item)) return false;
             if (!twoHandGrab)
             {
                 bool pressed = TwoHeld(other);
                 var hit = FindHandle(other.Ray);
-                if (!other.Tracked || other.SourceChanged || !pressed || !hit || hit.ItemId != item.id || TryPaletteAction(other.Ray, out _, out _)) return false;
+                bool sameItem = hit && (hit.ItemId == item.id || item.horizontalLevel && hit.Node == 0 && GridPath(item.id)?.id == hit.ItemId);
+                if (!other.Tracked || other.SourceChanged || !pressed || !sameItem || TryPaletteAction(other.Ray, out _, out _)) return false;
                 CaptureTwoHandAnchors(item, other); twoHandGrab = true;
             }
             if (!other.Tracked || other.SourceChanged || state.SourceChanged) { CancelGrab(); return true; }
@@ -240,7 +244,7 @@ namespace SpatialToolkit
             SolveTwoHandPose(GrabPoint(state, twoDepthA), GrabPoint(other, twoDepthB), twoLocalA, twoLocalB, twoVector, twoRotation, out var center, out var rotation);
             // Fit boxes remain upright and retain their floor contact throughout a two-hand turn.
             center.y = RoomRoot.TransformPoint(item.position).y;
-            bool blocked = Overlaps(center, item.dimensions, rotation, visuals[item.id].transform);
+            bool blocked = item.kind == ToolkitItemKind.Furniture && Overlaps(center, item.dimensions, rotation, visuals[item.id].transform);
             if (!blocked) { item.position = RoomRoot.InverseTransformPoint(center); item.rotation = Quaternion.Inverse(RoomRoot.rotation) * rotation; }
             RefreshMovedItem(item, blocked);
             Status = blocked ? "Rotation blocked by a surface." : "Two-hand rotate • move both hands • size stays fixed";

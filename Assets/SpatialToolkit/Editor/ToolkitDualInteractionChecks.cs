@@ -8,6 +8,52 @@ using UnityEngine;
 
 public static partial class ToolkitFeatureChecks
 {
+    public static string RunPaletteRebuildChecks()
+    {
+        if (!EditorApplication.isPlaying) throw new Exception("Enter Play Mode first.");
+        var root = new GameObject("Palette rebuild regression check");
+        int count = 0;
+        Action<bool, string> check = (ok, label) => { if (!ok) throw new Exception(label); count++; };
+        try
+        {
+            var owner = root.AddComponent<SpatialToolkitApp>(); owner.enabled = false;
+            var head = new GameObject("Test head").transform; head.SetParent(root.transform);
+            var panel = new GameObject("Test palette").AddComponent<ToolkitPalette>(); panel.transform.SetParent(root.transform);
+            panel.Initialize(owner);
+            var sample = new ToolInput { Source = "Left controller", PaletteTracked = true,
+                PalettePosition = new Vector3(0.3f, -0.3f, 0.7f), PaletteUp = Vector3.up };
+            panel.UpdatePose(sample, head);
+            Action<string> verify = label => {
+                var current = panel.GetComponentsInChildren<Canvas>(true).Single(c => c.gameObject.activeSelf);
+                check(panel.AttachedToWrist && panel.Visible, label + ": wrist remains visible");
+                check(Vector3.Distance(current.transform.localScale, Vector3.one * 0.00048f) < 0.0000001f,
+                    label + ": correct wrist scale immediately, before next pose update");
+            };
+            verify("Initial pose");
+            var position = panel.transform.position; var rotation = panel.transform.rotation;
+            foreach (string page in new[] { "settings", "about", "main", "minimize", "expand" })
+            {
+                panel.Navigate(page); verify(page);
+                check(panel.transform.position == position && panel.transform.rotation == rotation, page + ": pose unchanged");
+            }
+            panel.ToggleControls(); verify("Controls");
+            panel.BeginNumeric("width", 1); verify("Keypad");
+            panel.NumericKey("2"); verify("Keypad digit");
+            panel.NumericKey("cancel"); panel.ToggleControls();
+            sample.PaletteUp = Vector3.down; panel.UpdatePose(sample, head);
+            check(!panel.Visible, "Lowering the wrist hides the menu");
+            panel.Rebuild(); check(!panel.Visible, "Hidden wrist menu stays hidden during rebuild");
+            sample.PaletteUp = Vector3.up; panel.UpdatePose(sample, head); verify("Raised wrist");
+            owner.Preferences.wristGestureDisabled = true; panel.ResetWristPose(); panel.UpdatePose(sample, head);
+            panel.Rebuild();
+            var floating = panel.GetComponentsInChildren<Canvas>(true).Single(c => c.gameObject.activeSelf);
+            check(panel.Visible && !panel.AttachedToWrist && floating.transform.localScale == Vector3.one * 0.0006f,
+                "Floating menu retains its normal scale");
+            return "All " + count + " palette rebuild checks passed.";
+        }
+        finally { UnityEngine.Object.Destroy(root); }
+    }
+
     public static string RunExistingRegressionChecks()
     {
         app = UnityEngine.Object.FindFirstObjectByType<SpatialToolkitApp>();
@@ -143,7 +189,8 @@ public static partial class ToolkitFeatureChecks
             var preview = (GameObject)Get("levelPreview"); check(preview && preview.activeSelf, "Level grid previews on a vertical wall before placement");
             var previewPosition = preview.transform.position; Aim(Button("units").transform.position);
             check(preview.activeSelf && Vector3.Distance(previewPosition, preview.transform.position) < 0.0001f, "Level preview retains its wall pose while interacting with the menu");
-            Aim(new Vector3(1, 0, 0)); check(!preview.activeSelf, "Level preview hides on a floor instead of a wall");
+            Aim(new Vector3(1, 0, 0)); preview = (GameObject)Get("levelPreview");
+            check(preview.activeSelf && Vector3.Dot(preview.transform.forward, Vector3.up) > 0.99f, "Level preview automatically switches to a horizontal grid on a floor");
             app.Dispatch("hidemenu"); check(app.MenuHidden && !palette.Visible, "Hide menu immediately removes the palette");
             Aim(new Vector3(1, 1.4f, 2.497f)); Aim(new Vector3(1, 1.4f, 2.497f), true);
             check(!app.MenuHidden && app.Session.items.Count == 0, "The next select restores the menu without accidentally placing a measurement");

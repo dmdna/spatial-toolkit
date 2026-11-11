@@ -14,7 +14,7 @@ namespace SpatialToolkit
         {
             var visual = handle.gameObject.AddComponent<ToolkitSelectionVisual>();
             visual.ItemId = item.id; visual.Node = handle.Node;
-            var linked = item.kind == ToolkitItemKind.Level ? GridPath(item.id) : null;
+            var linked = item.kind == ToolkitItemKind.Level && !item.horizontalLevel ? GridPath(item.id) : null;
             visual.TargetId = linked?.id ?? item.id; visual.TargetNode = linked != null ? 0 : handle.Node;
             Vector3 bounds = item.kind == ToolkitItemKind.Furniture ? item.dimensions : item.kind == ToolkitItemKind.Frames ?
                 new Vector3(item.count * item.dimensions.x + (item.count - 1) * item.gap, item.dimensions.y, 0.018f) : new Vector3(1.2f, 1.2f, 0.015f);
@@ -24,7 +24,7 @@ namespace SpatialToolkit
         void UpdateWorldHover(ToolkitHandle handle)
         {
             hoverId = handle ? handle.ItemId : null; hoverNode = handle ? handle.Node : -1;
-            var linked = GridPath(hoverId);
+            var linked = Session.items.Exists(i => i.id == hoverId && i.horizontalLevel) ? null : GridPath(hoverId);
             if (linked != null) { hoverId = linked.id; hoverNode = 0; }
             RefreshSelectionFeedback();
         }

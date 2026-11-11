@@ -41,7 +41,7 @@ namespace SpatialToolkit
             if (!handle) return;
             var item = Session.items.Find(i => i.id == handle.ItemId);
             if (item == null) return;
-            var linked = item.kind == ToolkitItemKind.Level ? GridPath(item.id) : null;
+            var linked = item.kind == ToolkitItemKind.Level && !item.horizontalLevel ? GridPath(item.id) : null;
             selectedId = linked?.id ?? item.id;
             selectedNode = linked != null ? 0 : handle.Node;
             var selection = Selection;
@@ -131,7 +131,8 @@ namespace SpatialToolkit
             if (source.kind == ToolkitItemKind.AnglePath)
             {
                 var previousGrid = Session.items.Find(i => i.id == source.gridId);
-                var grid = new ToolkitItemData { kind = ToolkitItemKind.Level, position = point, rotation = previousGrid?.rotation ?? Quaternion.identity };
+                var grid = new ToolkitItemData { kind = ToolkitItemKind.Level, position = point, rotation = previousGrid?.rotation ?? Quaternion.identity,
+                    horizontalLevel = previousGrid?.horizontalLevel ?? false };
                 Session.items.Add(grid); path.gridId = grid.id;
             }
             Session.items.Add(path); activePath = path.id; selectedId = path.id; selectedNode = 0; lastNodePress = -10;

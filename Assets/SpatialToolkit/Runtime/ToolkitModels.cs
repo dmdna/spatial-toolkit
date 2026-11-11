@@ -19,6 +19,7 @@ namespace SpatialToolkit
         public bool closed;
         // Angle paths own one gravity grid. Missing links in older saves are inferred on load.
         public string gridId;
+        public bool horizontalLevel;
         public int count = 3;
         public float gap = 0.08f, inset = 0.06f;
     }

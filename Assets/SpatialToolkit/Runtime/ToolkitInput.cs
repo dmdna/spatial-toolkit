@@ -24,6 +24,13 @@ namespace SpatialToolkit
     public sealed class ToolkitInput
     {
         bool previousTrigger, previousGrip, previousUndo, previousSnap, previousPin, blocked, wasTracked;
+        bool suppressUntilRelease;
+        int previousLeftButtons, previousRightButtons;
+        static readonly InputFeatureUsage<bool>[] controllerButtons = {
+            CommonUsages.triggerButton, CommonUsages.gripButton, CommonUsages.primaryButton,
+            CommonUsages.secondaryButton, CommonUsages.menuButton,
+            CommonUsages.primary2DAxisClick, CommonUsages.secondary2DAxisClick
+        };
         string previousSource;
         Ray heldRay;
         Vector3 heldPosition;
@@ -34,8 +41,29 @@ namespace SpatialToolkit
         public bool AllowFallback = true;
         public ToolkitInput(ToolkitTrackedHands sharedHands = null) { ownsHands = sharedHands == null; hands = sharedHands ?? new ToolkitTrackedHands(); }
         public ToolkitInput CreateSecondary() => new ToolkitInput(hands) { AllowFallback = false };
-        public void Reset() { previousSource = null; blocked = true; wasTracked = false; }
+        public void Reset(bool suppressButtons = false) { previousSource = null; blocked = true; wasTracked = false; suppressUntilRelease |= suppressButtons; }
         public void Dispose() { if (ownsHands) hands.Dispose(); }
+
+        // Poll independently of the selected mode and the runtime's active hand/controller source.
+        public bool PollControllerButtons() => ResolveControllerButtons(
+            ReadControllerButtons(InputDevices.GetDeviceAtXRNode(XRNode.LeftHand)),
+            ReadControllerButtons(InputDevices.GetDeviceAtXRNode(XRNode.RightHand)));
+
+        public bool ResolveControllerButtons(int left, int right)
+        {
+            bool pressed = (left & ~previousLeftButtons) != 0 || (right & ~previousRightButtons) != 0;
+            previousLeftButtons = left; previousRightButtons = right;
+            return pressed;
+        }
+
+        static int ReadControllerButtons(XRDevice device)
+        {
+            if (!device.isValid || (device.characteristics & InputDeviceCharacteristics.Controller) == 0) return 0;
+            int buttons = 0;
+            for (int i = 0; i < controllerButtons.Length; i++)
+                if (device.TryGetFeatureValue(controllerButtons[i], out bool pressed) && pressed) buttons |= 1 << i;
+            return buttons;
+        }
 
         public ToolInput Read(Transform head, Transform trackingOrigin, Camera desktopCamera)
         {
@@ -94,6 +122,12 @@ namespace SpatialToolkit
 
         public ToolInput ResolveSample(ToolInput state, bool trigger, bool grip, bool undo = false, bool snap = false, bool pin = false)
         {
+            // A press used to recover Auto must not also place, grab, or fire a shortcut.
+            if (suppressUntilRelease && (state.Source == "Left controller" || state.Source == "Right controller"))
+            {
+                suppressUntilRelease = trigger || grip || undo || snap || pin;
+                trigger = grip = undo = snap = pin = false;
+            }
             // Eye validity can change during a blink; the captured hand still owns its drag.
             string identity = state.Source != null && state.Source.StartsWith("Left hand") ? "Left hand" :
                 state.Source != null && state.Source.StartsWith("Right hand") ? "Right hand" : state.Source;

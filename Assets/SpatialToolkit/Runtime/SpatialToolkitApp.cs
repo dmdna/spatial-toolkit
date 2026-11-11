@@ -99,6 +99,15 @@ namespace SpatialToolkit
         void Update()
         {
             if (!ViewCamera || !RoomRoot || !hasFocus) return;
+            if (input.PollControllerButtons() && Preferences.inputMode != ToolkitInputMode.Automatic)
+            {
+                Preferences.inputMode = ToolkitInputMode.Automatic;
+                CancelGrab();
+                input.Reset(true); secondaryInput?.Reset(true);
+                palette.Rebuild();
+                try { File.WriteAllText(PreferencesPath, JsonUtility.ToJson(Preferences)); }
+                catch (Exception e) { Debug.LogWarning("Settings not saved: " + e.Message); }
+            }
             ReadInteractionFrame();
             UpdateInteraction();
             DrawOtherPointer();
@@ -293,7 +302,7 @@ namespace SpatialToolkit
                 var path = Session.items.Find(i => i.id == activePath);
                 if (Tool == ToolkitTool.Level && path == null && Session.items.Count > 98)
                 { Message("This room needs space for a level grid and its path. Delete an item first."); return; }
-                if (Tool == ToolkitTool.Level && Mathf.Abs(targetNormal.y) > 0.3f) { Message("Aim at a vertical wall for this tool."); return; }
+                if (Tool == ToolkitTool.Level && !LevelSurface(targetNormal)) { Message("Aim at a wall or horizontal surface for this tool."); return; }
                 if (path != null && path.points.Count >= 128) { Message("Finish this path before adding more points."); return; }
                 if (path != null && path.points.Count > 0 && Vector3.Distance(target, RoomRoot.TransformPoint(path.points[path.points.Count - 1])) < 0.005f)
                 { Message("Move a little farther from the last node."); return; }
@@ -304,8 +313,11 @@ namespace SpatialToolkit
                     if (Tool == ToolkitTool.Level)
                     {
                         ToolkitGeometry.SurfaceBasis(targetNormal, out _, out var up);
+                        bool horizontal = HorizontalLevelSurface(targetNormal);
+                        if (horizontal) EnsureLevelHeading(target);
                         var grid = new ToolkitItemData { kind = ToolkitItemKind.Level,
-                            position = RoomRoot.InverseTransformPoint(target), rotation = Quaternion.Inverse(RoomRoot.rotation) * Quaternion.LookRotation(targetNormal, up) };
+                            horizontalLevel = horizontal, position = RoomRoot.InverseTransformPoint(target),
+                            rotation = Quaternion.Inverse(RoomRoot.rotation) * (horizontal ? HorizontalLevelRotation : Quaternion.LookRotation(targetNormal, up)) };
                         Session.items.Add(grid); path.gridId = grid.id;
                     }
                     Session.items.Add(path); activePath = path.id;
@@ -353,7 +365,7 @@ namespace SpatialToolkit
             switch (key)
             {
                 case "startpath": StartPathAtSelection(); return;
-                case "tool": ClearSelection(false); Tool = (ToolkitTool)direction; FinishPath(); hasHangPreviewPose = hasLevelPreviewPose = hasFitPreviewPose = false; break;
+                case "tool": ClearSelection(false); Tool = (ToolkitTool)direction; FinishPath(); hasHangPreviewPose = hasLevelPreviewPose = hasFitPreviewPose = false; levelHeadingInitialized = false; break;
                 case "wrist": Preferences.wristGestureDisabled = !Preferences.wristGestureDisabled; palette.ResetWristPose(); break;
                 case "colors": Preferences.colorOption = (Preferences.colorOption + direction + 3) % 3; ApplyColors(); break;
                 case "snap": Snapping = !Snapping; Message(Snapping ? "Snapping on." : "Snapping off."); break;
@@ -397,10 +409,10 @@ namespace SpatialToolkit
 
         void RotateSelection(float degrees)
         {
-            var item = Session.items.Find(i => i.id == selectedId);
-            if (item == null || item.kind != ToolkitItemKind.Furniture) { Message("Select a furniture box to rotate it."); return; }
+            var item = RotationSelection;
+            if (!RotatesUpright(item)) { Message("Select a furniture box or horizontal level grid to rotate it."); return; }
             var rotation = Quaternion.Inverse(RoomRoot.rotation) * Quaternion.AngleAxis(degrees, Vector3.up) * RoomRoot.rotation * item.rotation;
-            if (Overlaps(RoomRoot.TransformPoint(item.position), item.dimensions, RoomRoot.rotation * rotation, visuals[item.id].transform))
+            if (item.kind == ToolkitItemKind.Furniture && Overlaps(RoomRoot.TransformPoint(item.position), item.dimensions, RoomRoot.rotation * rotation, visuals[item.id].transform))
             { Message("Rotation would overlap a surface."); return; }
             Remember(); item.rotation = rotation; RenderAll(); Message("Rotated 15 degrees.");
         }
@@ -476,8 +488,10 @@ namespace SpatialToolkit
             if (!handle) return;
             SelectHandle(handle, false);
             var linked = Session.items.Find(i => i.kind == ToolkitItemKind.Level && i.id == handle.ItemId);
-            if (linked != null && Selection != null && Selection.kind == ToolkitItemKind.AnglePath)
+            if (linked != null && !linked.horizontalLevel && Selection != null && Selection.kind == ToolkitItemKind.AnglePath)
                 handle = visuals[Selection.id].GetComponentsInChildren<ToolkitHandle>().First(h => h.Node == 0);
+            if (handle.Node == 0 && RotationSelection?.horizontalLevel == true)
+                handle = visuals[RotationSelection.id].GetComponent<ToolkitHandle>();
             grabbed = handle;
             rebaseGrab = false;
             float distance = Mathf.Max(0.05f, Vector3.Dot(handle.transform.position - state.Ray.origin, state.Ray.direction));
@@ -509,9 +523,9 @@ namespace SpatialToolkit
             }
             else
             {
-                if (item.kind == ToolkitItemKind.Furniture)
+                if (RotatesUpright(item))
                 {
-                    point += Vector3.up * item.dimensions.y * 0.5f;
+                    if (item.kind == ToolkitItemKind.Furniture) point += Vector3.up * item.dimensions.y * 0.5f;
                     float yaw = state.Gesture ? WristYaw() : Mathf.DeltaAngle(grabYaw, Mathf.Atan2(state.Forward.x, state.Forward.z) * Mathf.Rad2Deg);
                     if (state.Gesture || Snapping) yaw = Mathf.Round(yaw / 15) * 15;
                     grabStickYaw += state.RotateAxis * 30 * Time.unscaledDeltaTime;
@@ -519,9 +533,14 @@ namespace SpatialToolkit
                     item.rotation = Quaternion.Inverse(RoomRoot.rotation) * Quaternion.AngleAxis(yaw, Vector3.up) * grabWorldRotation;
                 }
                 item.position = RoomRoot.InverseTransformPoint(point);
+                if (item.kind == ToolkitItemKind.Level && item.horizontalLevel)
+                {
+                    var linkedPath = GridPath(item.id);
+                    if (linkedPath != null && linkedPath.points.Count > 0) linkedPath.points[0] = item.position;
+                }
                 if (item.kind == ToolkitItemKind.Frames || item.kind == ToolkitItemKind.Level)
                 {
-                    if (validSurface && Mathf.Abs(targetNormal.y) < 0.3f)
+                    if (!item.horizontalLevel && validSurface && Mathf.Abs(targetNormal.y) < 0.3f)
                     {
                         ToolkitGeometry.SurfaceBasis(targetNormal, out _, out var up);
                         item.rotation = Quaternion.Inverse(RoomRoot.rotation) * Quaternion.LookRotation(targetNormal, up);
@@ -531,7 +550,8 @@ namespace SpatialToolkit
             bool blocked = item.kind == ToolkitItemKind.Furniture && Overlaps(RoomRoot.TransformPoint(item.position), item.dimensions,
                 RoomRoot.rotation * item.rotation, visuals.TryGetValue(id, out var body) ? body.transform : null);
             bool acceptable = validSurface && (item.kind != ToolkitItemKind.Furniture || targetNormal.y > 0.8f) &&
-                ((item.kind != ToolkitItemKind.Frames && item.kind != ToolkitItemKind.Level) || Mathf.Abs(targetNormal.y) < 0.3f);
+                (item.kind == ToolkitItemKind.Level && item.horizontalLevel ? HorizontalLevelSurface(targetNormal) :
+                    (item.kind != ToolkitItemKind.Frames && item.kind != ToolkitItemKind.Level) || Mathf.Abs(targetNormal.y) < 0.3f);
             Status = behind ? "Release with a throw to delete." : blocked ? "Overlaps a surface • move to clear space" : "Release to place • throw behind you to delete";
             if (state.GripUp)
             {
@@ -558,6 +578,11 @@ namespace SpatialToolkit
             if (!IsPath(item))
             {
                 root.transform.localPosition = item.position; root.transform.localRotation = item.rotation;
+                if (item.kind == ToolkitItemKind.Level && item.horizontalLevel)
+                {
+                    var path = GridPath(item.id);
+                    if (path != null && path.points.Count > 0) { path.points[0] = item.position; RefreshMovedItem(path, false); }
+                }
                 if (item.kind == ToolkitItemKind.Furniture)
                     foreach (var renderer in root.GetComponentsInChildren<Renderer>())
                     {
@@ -655,7 +680,7 @@ namespace SpatialToolkit
             }
             else
             {
-                DrawLevelGrid(root.transform);
+                DrawLevelGrid(root.transform, item.horizontalLevel);
                 root.AddComponent<BoxCollider>().size = new Vector3(1.2f, 1.2f, 0.015f);
                 root.AddComponent<ToolkitHandle>().ItemId = item.id;
                 levelReadout = ToolkitVisuals.Label(root.transform, Vector3.up * 0.7f, "Align controller with edge", ToolkitVisuals.Mint);
