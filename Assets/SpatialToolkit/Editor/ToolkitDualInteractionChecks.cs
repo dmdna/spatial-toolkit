@@ -108,9 +108,13 @@ public static partial class ToolkitFeatureChecks
             Aim(p, true); Set("dimensionAt", Time.unscaledTime - 0.3f);
             Aim(p + palette.transform.right * 0.1f, held: true);
             check(box.dimensions.x > originalWidth && !has("num:apply"), "Holding and dragging right grows the selected box without a keypad");
+            check(Button("edit:width").GetComponentInChildren<UnityEngine.UI.Text>().text.EndsWith(ToolkitGeometry.Distance(box.dimensions.x, false, true)), "Menu dimension uses padded three-decimal formatting during a real drag");
+            check(app.RoomRoot.GetComponentsInChildren<UnityEngine.UI.Text>().Any(t => t.text.Contains("W " + ToolkitGeometry.Distance(box.dimensions.x, false, true))), "World Fit dimensions use the same live formatting");
             float bigger = box.dimensions.x; Aim(p - palette.transform.right * 0.1f, held: true);
             check(box.dimensions.x < originalWidth && box.dimensions.x < bigger, "Dragging left reduces the same live dimension");
             Aim(p); check(((List<string>)Get("undo")).Count == undoCount + 1, "A complete numeric drag creates exactly one undo record");
+            check(Button("edit:width").GetComponentInChildren<UnityEngine.UI.Text>().text.EndsWith(ToolkitGeometry.Distance(box.dimensions.x, false, true)) && !app.DimensionAdjusting, "Release retains steady menu dimensions");
+            check(app.RoomRoot.GetComponentsInChildren<UnityEngine.UI.Text>().Any(t => t.text.Contains("W " + ToolkitGeometry.Distance(box.dimensions.x, false, true))), "Release retains steady world Fit dimensions");
             app.UndoAction(); box = app.Selection;
             check(Mathf.Abs(box.dimensions.x - originalWidth) < 0.0001f, "Undo restores the size from before the complete drag");
             p = Button("edit:height").transform.position; float height = box.dimensions.y;

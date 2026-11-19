@@ -4,7 +4,7 @@
 
 Spatial Toolkit is a mixed reality workbench for measuring and planning changes to a physical room. It overlays measurement paths, furniture-sized boxes, picture layouts, and level guides on PICO video passthrough, using the scanned room mesh for surface placement and collision checks.
 
-The app targets **PICO OS 6 / Project Swan** through Unity's native PICO XR runtime on Android. The current build is **0.4.5 (Android version code 11)**, installed and startup-verified on the connected Swan headset. It is developed with **Unity 6000.3.11f1**. The project uses `picoxr` mode; Spatial Adapter is also installed, but this app runs in PICO XR mode.
+The app targets **PICO OS 6 / Project Swan** through Unity's native PICO XR runtime on Android. The current build is **0.4.8 (Android version code 14)**, installed and startup-verified on the connected Swan headset. It is developed with **Unity 6000.3.11f1**. The project uses `picoxr` mode; Spatial Adapter is also installed, but this app runs in PICO XR mode.
 
 Created by **Diego Medina Molina and the PICO Vibe Lab**.
 
@@ -20,6 +20,9 @@ Created by **Diego Medina Molina and the PICO Vibe Lab**.
 - **Undo and workspace controls:** Undo up to 50 actions. Hold Undo to clear the live workspace, or hold Load room to delete the saved room and its anchors. Clearing the workspace is undoable and preserves the saved room.
 - **Room persistence:** Save room geometry locally with a PICO spatial anchor and restore it after relocalization. Tracking loss hides anchored overlays and blocks placement; a failed load preserves the current workspace. Saved room geometry uses no cloud service or account.
 - **Visual preferences:** Choose from three presets, including a high-contrast option, and retain input, handedness, units, and wrist-gesture preferences between sessions.
+- **App identity:** The headset launcher displays **Spatial Toolkit**, with a minimalist ruler-and-bubble-level icon in Color 1's mint, lavender, and dark navy. The source artwork is `Assets/SpatialToolkit/Art/SpatialToolkitIcon.png`; its built-in image-generation prompt is saved alongside it in `IconGeneration.txt`.
+- **Steady readouts:** Measurements, areas, Fit/Hang dimensions, Level angles, and reach always use three decimal places, equal-width digit cells, and reserved integer columns, including after release. Imperial lengths consistently use whole feet and inches rounded to three decimals. Fit dimensions use separate Width/Height/Depth lines in the world, including on the placement preview.
+- **Dimension grids:** Fit and Hang menu dimensions use left-aligned labels, fixed feet and final-unit columns, and matching outside margins. The final unit column is shared by inches and meters; the inches field reserves two whole digits and three decimals. Fit box and placement-preview labels use the same grid. Hang's world guides retain their existing nail labels.
 - **Hide menu:** Hide the menu and pointers before using the headset's capture feature. Release and select again to restore the menu without placing an item; dwell users get automatic restoration after eight seconds. In-app snapshots were removed because this build has no PICO Platform app ID and no verified supported alternative for triggering the native passthrough capture. No snapshot timer is exposed.
 - **Editor preview:** Try the tools in an explicitly simulated room in Unity Play Mode. This room is excluded from headset runtime.
 
@@ -42,7 +45,38 @@ When another input mode is selected, pressing a trigger, grip, face button, menu
 
 ## Changelog
 
-All eleven numbered builds recorded to date are listed newest first. Earlier changes and verification are reconstructed from the repository's implementation notes and build records. Verification counts describe checks recorded for each build.
+All numbered builds recorded to date are listed newest first. Earlier changes and verification are reconstructed from the repository's implementation notes and build records. Verification counts describe checks recorded for each build.
+
+### 0.4.8 — Fixed dimension grids
+
+Android version code **14**.
+
+- Fit Check's Width/Height/Depth menu labels share a fixed left edge close to the previous label positions. The outside gap after the final unit matches the label inset. Feet units, inches decimals, and inches units occupy fixed columns; meters use the same final-unit column and decimal position. Inches reserve two whole digits, including `11.999`, without pushing the feet column.
+- Applied the same fixed layout to placed and preview Fit box W/H/D labels, keeping the title centered. Hang's menu rows use matching left/right margins with room for the full Hanger below top label. Hang world guides and Measure layout retain their existing presentation.
+- Verification: **1,832 automated checks passed in Unity**: 799 grid mesh checks, 411 existing numeric mesh/formatting checks, 18 geometry checks, and 604 Play Mode interaction/input/regression checks. Grid checks verify actual label/unit vertices, symmetric margins, metric/inches decimal alignment, feet-unit alignment across different labels and changing values, and two-digit-inch clearance. Visually reviewed six rendered views: Fit and Hang menus and Fit world labels, each in metric and imperial (`.tools/checks/grid-*.png`). No emulator run was performed.
+- Android development APK built successfully on its first numbered attempt (`Logs/AndroidBuildResult.json`, succeeded at **2026-11-18T23:54:51Z**). Existing SDK/app ID, controller-prefab, shader, native-audio alignment, unused Spatial Adapter/Pipeline, and desktop-only USD warnings remain. Verified APK version/name and retention of the explicit launcher bitmap with `aapt2`. Installed **0.4.8 / code 14** on the connected Swan headset and verified a successful cold launch. Physical headset acceptance of the new column spacing remains outstanding.
+- Startup verification also confirmed a running process and foreground resumed activity. The sampled process log (`Logs/Toolkit048Startup.log`) contains no Unity/AndroidRuntime error or fatal entries; native/vendor diagnostics remain.
+
+### 0.4.7 — Default steady numbers and explicit launcher icon
+
+Android version code **13**.
+
+- The steady readout layout is now permanent. Menu and world labels keep three decimal places, tabular digits, and integer padding after release. Imperial lengths use the same thousandth-inch rounding while adjusting and at rest, removing the previous nearest-eighth rounding transition.
+- The user reported the Unity logo still appeared in the PICO app library/dock despite the prior APK containing the custom adaptive artwork. Added a late Android Gradle-generation hook that packages the original artwork under a distinct drawable resource and assigns it explicitly to the application, round icon, and Unity launch activity. This gives the launcher a direct bitmap resource instead of depending on inherited/adaptive icon handling. The app remains **Spatial Toolkit** with the same package identifier.
+- Verification: **1,033 automated Unity checks passed**: 411 real text-mesh/formatting checks, 18 geometry checks, and 604 Play Mode interaction/input/regression checks. Added default-versus-adjusting equality checks and changed release checks to require the steady menu and world layout. No emulator run was performed.
+- Android development APK built successfully on its first numbered attempt (`Logs/AndroidBuildResult.json`, succeeded at **2026-11-18T23:30:21Z**). Existing SDK/app ID, controller-prefab, shader, native-audio alignment, unused Spatial Adapter/Pipeline, and desktop-only USD warnings remain. `aapt2` confirms both the application icon and launch activity icon resolve directly to `res/drawable-nodpi-v4/spatial_toolkit_launcher.png`; extracted and visually inspected that packaged image (`.tools/checks/toolkit047-packaged-icon.png`).
+- Installed **0.4.7 / code 13** on the connected Swan headset, refreshed the PICO launcher process without clearing app data, and verified a successful cold launch, running process, and foreground resumed activity. The sampled startup log (`Logs/Toolkit047Startup.log`) contains no Unity/AndroidRuntime error or fatal entries. Device screenshot capture was rejected, so visual confirmation of the PICO library/dock icon requires headset inspection. No physical readout acceptance has been claimed.
+
+### 0.4.6 — App identity and steady live numbers
+
+Android version code **12**.
+
+- Replaced the Unity launcher logo with a minimalist lavender ruler and mint bubble level on dark navy, matching Color 1. Configured the default icon and every Android legacy, round, and adaptive icon slot. The launcher name is now **Spatial Toolkit**; the Android application identifier is unchanged.
+- Live line lengths, dragged polygon areas, Level path angles, controller/finger alignment angles, Fit/Hang dimension controls, and continuously adjusted reach use three decimal places with equal-width numeric cells and reserved integer columns. Crossing a digit boundary or imperial inch/foot carry keeps decimal points and units in place. Released dimensions and placed measurements trim trailing zeros; settled imperial lengths retain nearest-eighth-inch rounding.
+- World Fit labels show Width/Height/Depth on separate lines, and the placement preview now includes the same dimension readout. Both menu and world Fit labels return to compact formatting when a dimension drag ends. Imperial reach fits its Settings field without wrapping.
+- Verification: **1,029 automated checks passed in Unity**, comprising 407 actual Legacy Text mesh/formatting checks, 18 measurement geometry checks, and 604 Play Mode input, menu, dimension-drag/release, selection, preview, and horizontal Level checks. Checks cover digit boundaries, metric/imperial formatting, inch carry, font atlas rebuilds, and immediate compact formatting after release. Reviewed the rendered compact Fit menu (`.tools/checks/numeric-fit-review.png`). No emulator run was performed.
+- Android development APK built successfully on its first numbered attempt (`Logs/AndroidBuildResult.json`, succeeded at **2026-11-18T23:22:37Z**). Build warnings included SDK/app ID configuration, unused Spatial Adapter/Pipeline setup, controller-prefab scripts, shaders, native-audio alignment, legacy/round icon deprecation, and desktop-only USD support. Verified the packaged app label, version, and adaptive icon resource using `aapt2`, and inspected the generated icon foreground.
+- Installed **0.4.6 / code 12** on the connected Swan headset. Verified a successful cold launch, a running process, and the foreground resumed activity. The sampled process startup log (`Logs/Toolkit046Startup.log`) contains no Unity/AndroidRuntime error or fatal entries; native/vendor diagnostics remain. Physical headset acceptance of the launcher appearance and live readout ergonomics remains outstanding.
 
 ### 0.4.5 — Horizontal Level grids
 

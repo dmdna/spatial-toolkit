@@ -7,7 +7,7 @@ namespace SpatialToolkit
     {
         SpatialToolkitApp app;
         Canvas canvas;
-        Text status;
+        Text status, reachReadout;
         bool pinned;
         Sprite rounded;
         string editing, number;
@@ -29,7 +29,7 @@ namespace SpatialToolkit
             Vector3 scale = canvas ? canvas.transform.localScale : Vector3.one * 0.0006f;
             bool visible = !canvas || canvas.gameObject.activeSelf;
             Highlight(null, 0);
-            undoLabel = loadLabel = null; undoProgress = loadProgress = null;
+            undoLabel = loadLabel = reachReadout = null; undoProgress = loadProgress = null;
             if (canvas) { canvas.gameObject.SetActive(false); Destroy(canvas.gameObject); }
             Build();
             canvas.transform.localScale = scale;
@@ -239,7 +239,7 @@ namespace SpatialToolkit
             ToolkitVisuals.Text(panel, new Vector2(340, 54), new Vector2(0, -85), "Option " + (app.Preferences.colorOption + 1), 27, ToolkitVisuals.Mint);
             Button(panel, new Vector2(225, -85), new Vector2(70, 54), ">", "colors:1");
             Button(panel, new Vector2(-190, -160), new Vector2(175, 48), "Reach -", "reach:-1");
-            ToolkitVisuals.Text(panel, new Vector2(175, 48), new Vector2(0, -160), app.Reach.ToString("0.0") + " m", 24, Color.white);
+            reachReadout = ToolkitVisuals.Text(panel, new Vector2(175, 48), new Vector2(0, -160), ToolkitGeometry.Distance(app.Reach, app.Preferences.imperial, app.ReachAdjusting), app.Preferences.imperial ? 18 : 24, Color.white);
             Button(panel, new Vector2(190, -160), new Vector2(175, 48), "Reach +", "reach:1");
             Button(panel, new Vector2(0, -220), new Vector2(540, 48), "About", "about");
         }
@@ -280,7 +280,9 @@ namespace SpatialToolkit
         void Row(string label, float value, float y, string action)
         {
             Button(canvas.transform, new Vector2(-245, y), new Vector2(55, 48), "−", action + ":-1");
-            Button(canvas.transform, new Vector2(0, y), new Vector2(420, 48), label + "   " + ToolkitGeometry.Distance(value, app.Preferences.imperial), "edit:" + action);
+            var text = Button(canvas.transform, new Vector2(0, y), new Vector2(420, 48), label + "   " + ToolkitGeometry.Distance(value, app.Preferences.imperial, app.DimensionAdjusting), "edit:" + action);
+            // The button's text rectangle has a four-unit inset of its own.
+            ToolkitDimensionGrid.Configure(text, (app.Tool == ToolkitTool.Hang ? ToolkitDimensionGrid.HangMenuInset : ToolkitDimensionGrid.FitMenuInset) - 4);
             Button(canvas.transform, new Vector2(245, y), new Vector2(55, 48), "+", action + ":1");
         }
         public void RefreshDimension(string key, float value)
@@ -289,7 +291,7 @@ namespace SpatialToolkit
             {
                 if (action.Action != "edit:" + key) continue;
                 var text = action.GetComponentInChildren<Text>();
-                if (text) text.text = text.text.Split(new[] { "   " }, System.StringSplitOptions.None)[0] + "   " + ToolkitGeometry.Distance(value, app.Preferences.imperial);
+                if (text) text.text = text.text.Split(new[] { "   " }, System.StringSplitOptions.None)[0] + "   " + ToolkitGeometry.Distance(value, app.Preferences.imperial, app.DimensionAdjusting);
             }
         }
         public void BeginNumeric(string property, float meters)
@@ -335,7 +337,7 @@ namespace SpatialToolkit
             var image = go.GetComponent<Image>(); image.sprite = rounded; image.type = UnityEngine.UI.Image.Type.Sliced;
             image.color = color; image.raycastTarget = false; return image;
         }
-        void Button(Transform parent, Vector2 pos, Vector2 size, string label, string action, Color? tint = null)
+        Text Button(Transform parent, Vector2 pos, Vector2 size, string label, string action, Color? tint = null)
         {
             var image = Image(parent, size, pos, tint ?? ToolkitVisuals.Button);
             AddHitTarget(image, action, size);
@@ -349,11 +351,13 @@ namespace SpatialToolkit
                 if (action == "undo") { undoLabel = labelText; undoProgress = progress; }
                 else { loadLabel = labelText; loadProgress = progress; }
             }
+            return labelText;
         }
 
         public void UpdatePose(ToolInput input, Transform head)
         {
             if (!canvas) return;
+            if (reachReadout) reachReadout.text = ToolkitGeometry.Distance(app.Reach, app.Preferences.imperial, app.ReachAdjusting);
             if (app.MenuHidden) { canvas.gameObject.SetActive(false); return; }
             FacePlayer(head);
             bool freshPose = inputSource == null;

@@ -27,9 +27,9 @@ public static class ToolkitGeometryChecks
         Check(!ToolkitGeometry.TryArea(nonplanar, out _, out _), "nonplanar outline rejected");
         Check(!ToolkitGeometry.TryArea(new[] { Vector3.zero, Vector3.right, Vector3.right * 2 }, out _, out _), "collinear area rejected");
         Check(!ToolkitGeometry.TryArea(new[] { Vector3.zero, Vector3.zero, Vector3.right }, out _, out _), "duplicate vertices rejected");
-        Check(ToolkitGeometry.Distance(0.3048f, true) == "1 ft 0 in", "foot conversion");
-        Check(ToolkitGeometry.Distance(0.3047999f, true) == "1 ft 0 in", "inch carry rounding");
-        Check(ToolkitGeometry.Area(1, true) == "10.76 sq ft", "square foot conversion");
+        Check(ToolkitGeometry.Distance(0.3048f, true).TrimStart('\u2007') == "1 ft \u20070.000 in", "foot conversion");
+        Check(ToolkitGeometry.Distance(0.3047999f, true).TrimStart('\u2007') == "1 ft \u20070.000 in", "inch carry rounding");
+        Check(ToolkitGeometry.Area(1, true).TrimStart('\u2007') == "10.764 sq ft", "square foot conversion at millesimal precision");
         var snapped = ToolkitGeometry.SnapOnSurface(new Vector3(1.014f,2.027f,3), new Vector3(1,2,3), Vector3.forward, 0.01f);
         Check(Near(snapped.x,1.01f) && Near(snapped.y,2.03f) && Near(snapped.z,3), "wall snap preserves surface depth");
         var nails = ToolkitGeometry.NailPositions(3,0.4f,0.5f,0.08f,0.06f);

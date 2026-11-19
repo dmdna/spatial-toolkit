@@ -61,6 +61,7 @@ namespace SpatialToolkit
         public bool HandsInput => state.Gesture;
         public bool DwellInput => state.Dwell;
         public float Reach => reach;
+        public bool ReachAdjusting => Mathf.Abs(state.DepthDelta) > 0.00001f;
         string StorageDirectory => string.IsNullOrEmpty(StorageDirectoryOverride) ? Application.persistentDataPath : StorageDirectoryOverride;
         string SessionPath => Path.Combine(StorageDirectory, "spatial-toolkit-room.json");
         string PreferencesPath => Path.Combine(StorageDirectory, "spatial-toolkit-settings.json");
@@ -233,7 +234,7 @@ namespace SpatialToolkit
                 Status = state.MenuOnly ? "Look at Controls to enable hands-free dwell, or bring a hand into view." :
                     validSurface ? (Tool == ToolkitTool.Fit && targetNormal.y > 0.8f && Overlaps(target + Vector3.up * (Preferences.furniture.y * 0.5f + 0.004f), Preferences.furniture, FitPreviewRotation, null)
                         ? "Preview blocked: overlaps a surface." : Snapping ? "Surface found • snapping on" : "Surface found • free placement") :
-                    "No mapped surface • scan the room • reach " + reach.ToString("0.0") + " m";
+                    "No mapped surface • scan the room • reach " + ToolkitGeometry.Distance(reach, Preferences.imperial, ReachAdjusting);
         }
 
         ToolkitHandle FindHandle() => FindHandle(state.Ray);
@@ -602,14 +603,14 @@ namespace SpatialToolkit
             {
                 RefreshSegment(labels[labelIndex++], item.points[item.points.Count - 1], item.points[0]);
                 bool valid = ToolkitGeometry.TryArea(item.points, out var area, out var reason);
-                var areaLabel = labels[labelIndex]; areaLabel.text = valid ? ToolkitGeometry.Area(area, Preferences.imperial) : reason;
+                var areaLabel = labels[labelIndex]; areaLabel.text = valid ? ToolkitGeometry.Area(area, Preferences.imperial, true) : reason;
                 areaLabel.color = valid ? ToolkitVisuals.Mint : ToolkitVisuals.Coral;
                 areaLabel.transform.parent.localPosition = item.points.Aggregate(Vector3.zero, (a, b) => a + b) / item.points.Count + Vector3.up * 0.07f;
             }
         }
         void RefreshSegment(Text label, Vector3 a, Vector3 b, bool angles = false)
         {
-            label.text = SegmentText(a, b, angles);
+            label.text = SegmentText(a, b, angles, true);
             label.transform.parent.localPosition = (a + b) * 0.5f + Vector3.up * 0.04f;
         }
 
@@ -669,8 +670,9 @@ namespace SpatialToolkit
                 var collider = root.AddComponent<BoxCollider>(); collider.size = item.dimensions;
                 root.AddComponent<Rigidbody>().isKinematic = true; root.AddComponent<ToolkitFurniture>();
                 root.AddComponent<ToolkitHandle>().ItemId = item.id;
-                ToolkitVisuals.Label(root.transform, Vector3.up * (item.dimensions.y * 0.5f + 0.08f),
-                    "FIT CHECK\n" + ToolkitGeometry.Distance(item.dimensions.x, Preferences.imperial) + " × " + ToolkitGeometry.Distance(item.dimensions.y, Preferences.imperial) + " × " + ToolkitGeometry.Distance(item.dimensions.z, Preferences.imperial), color);
+                var dimensionsLabel = ToolkitVisuals.Label(root.transform, Vector3.up * (item.dimensions.y * 0.5f + 0.08f),
+                    FitDimensions(item.dimensions, DimensionAdjusting), color);
+                ToolkitDimensionGrid.Configure(dimensionsLabel, ToolkitDimensionGrid.WorldInset);
             }
             else if (item.kind == ToolkitItemKind.Frames)
             {
@@ -689,11 +691,11 @@ namespace SpatialToolkit
         }
         void SegmentLabel(Transform parent, Vector3 a, Vector3 b, bool angles = false) => ToolkitVisuals.Label(parent, (a + b) * 0.5f + Vector3.up * 0.04f,
             SegmentText(a, b, angles), Color.white);
-        string SegmentText(Vector3 a, Vector3 b, bool angles = false)
+        string SegmentText(Vector3 a, Vector3 b, bool angles = false, bool live = false)
         {
-            if (!angles) return ToolkitGeometry.Distance(Vector3.Distance(a, b), Preferences.imperial);
+            if (!angles) return ToolkitGeometry.Distance(Vector3.Distance(a, b), Preferences.imperial, live);
             Vector3 axis = RoomRoot.TransformDirection(b - a);
-            return "Horizontal " + ToolkitGeometry.LevelError(axis).ToString("0.0") + "°\nVertical " + ToolkitGeometry.PlumbError(axis).ToString("0.0") + "°";
+            return "Horizontal " + ToolkitGeometry.Angle(ToolkitGeometry.LevelError(axis), live) + "\nVertical " + ToolkitGeometry.Angle(ToolkitGeometry.PlumbError(axis), live);
         }
 
         void UpdatePreview()
@@ -706,7 +708,7 @@ namespace SpatialToolkit
                 var last = RoomRoot.TransformPoint(path.points[path.points.Count - 1]);
                 previewLine.SetPosition(0, last); previewLine.SetPosition(1, target);
                 liveReadout.transform.parent.position = (last + target) * 0.5f + Vector3.up * 0.06f;
-                liveReadout.text = SegmentText(RoomRoot.InverseTransformPoint(last), RoomRoot.InverseTransformPoint(target), Tool == ToolkitTool.Level);
+                liveReadout.text = SegmentText(RoomRoot.InverseTransformPoint(last), RoomRoot.InverseTransformPoint(target), Tool == ToolkitTool.Level, true);
             }
             if (Tool == ToolkitTool.Fit && validSurface && targetNormal.y > 0.8f && !grabbed && !menuBlocked)
             { fitPreviewPosition = target; hasFitPreviewPose = true; }
@@ -714,12 +716,15 @@ namespace SpatialToolkit
             if (fit && !fitPreview)
             {
                 fitPreview = new GameObject("Furniture preview", typeof(ToolkitOwned), typeof(ToolkitMaterialCleanup));
-                ToolkitVisuals.BoxEdges(fitPreview.transform, Vector3.one, ToolkitVisuals.Lavender);
+                fitPreviewBox = new GameObject("Box geometry").transform;
+                fitPreviewBox.SetParent(fitPreview.transform, false);
+                ToolkitVisuals.BoxEdges(fitPreviewBox, Vector3.one, ToolkitVisuals.Lavender);
             }
             if (fitPreview)
             {
                 fitPreview.SetActive(fit); fitPreview.transform.SetPositionAndRotation(fitPreviewPosition + Vector3.up * (Preferences.furniture.y * 0.5f + 0.004f), FitPreviewRotation);
-                fitPreview.transform.localScale = Preferences.furniture;
+                fitPreviewBox.localScale = Preferences.furniture;
+                UpdateFitDimensionReadout(fit);
                 bool blocked = fit && Overlaps(fitPreview.transform.position, Preferences.furniture, FitPreviewRotation, null);
                 foreach (var line in fitPreview.GetComponentsInChildren<LineRenderer>())
                     if (!line.GetComponent<ToolkitLineOutline>()) line.sharedMaterial.color = blocked ? ToolkitVisuals.Coral : ToolkitVisuals.Lavender;
@@ -735,7 +740,9 @@ namespace SpatialToolkit
                 }
                 float horizontal = ToolkitGeometry.LevelError(state.AlignmentForward), vertical = ToolkitGeometry.PlumbError(state.AlignmentForward);
                 float error = Mathf.Min(horizontal, vertical);
-                levelReadout.text = (horizontal < vertical ? "LEVEL  " : "PLUMB  ") + error.ToString("0.0") + (state.Gesture ? "°\nIndex-finger alignment (approximate)" : "°\nController alignment");
+                // Keep the numeric column fixed even when the nearer alignment changes.
+                levelReadout.text = ToolkitGeometry.Angle(error, true) + "\n" + (horizontal < vertical ? "LEVEL" : "PLUMB") +
+                    (state.Gesture ? " - Index-finger alignment (approximate)" : " - Controller alignment");
                 levelReadout.color = error <= 1 ? ToolkitVisuals.Mint : ToolkitVisuals.Coral;
             }
         }

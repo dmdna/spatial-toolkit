@@ -108,7 +108,7 @@ public static partial class ToolkitFeatureChecks
             Place(new Vector3(-1.6f, 0.8f, 2.49f)); Place(new Vector3(-0.6f, 1.8f, 2.49f));
             var angle = app.Session.items.Single(i => i.kind == ToolkitItemKind.AnglePath);
             var angleText = app.RoomRoot.GetComponentsInChildren<Text>().FirstOrDefault(t => t.text.Contains("Horizontal") && t.text.Contains("Vertical"));
-            Check(angle.points.Count == 2 && angleText && angleText.text.Contains("45.0"), "Level draws connected nodes with horizontal and vertical angles");
+            Check(angle.points.Count == 2 && angleText && angleText.text.Contains("45.000\u00b0"), "Level draws connected nodes with steady horizontal and vertical angles");
             Set("lastNodePress", Time.unscaledTime); Aim(new Vector3(-0.4f, 2, 2.49f), true);
             Check(Active == null, "Rapid second press also finishes the Level angle path");
             app.Dispatch("tool:2"); Aim(new Vector3(0.8f, 1.8f, 2.49f));

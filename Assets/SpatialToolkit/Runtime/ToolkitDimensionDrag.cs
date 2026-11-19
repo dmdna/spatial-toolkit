@@ -12,6 +12,8 @@ namespace SpatialToolkit
         float dimensionAt, dimensionValue;
         bool dimensionDragging;
 
+        public bool DimensionAdjusting => dimensionKey != null && dimensionDragging;
+
         Vector3 DimensionCursor(Ray ray)
         {
             return dimensionPlane.Raycast(ray, out float distance) && distance >= 0 && distance < 20 ? ray.GetPoint(distance) : dimensionStart;
@@ -41,7 +43,12 @@ namespace SpatialToolkit
             }
             float elapsed = Time.unscaledTime - dimensionAt;
             if (elapsed < 0.25f) return true;
-            dimensionDragging = true;
+            if (!dimensionDragging)
+            {
+                dimensionDragging = true;
+                palette.Rebuild();
+                if (Selection?.kind == ToolkitItemKind.Furniture) RenderItem(Selection);
+            }
             float delta = Vector3.Dot(DimensionCursor(state.Ray) - dimensionStart, dimensionRight);
             float min = dimensionKey == "gap" || dimensionKey == "inset" ? 0 : 0.05f;
             float max = dimensionKey == "gap" ? 1 : dimensionKey == "inset" ? FrameDimensions.y : dimensionKey.StartsWith("frame") ? 3 : dimensionKey == "height" ? 5 : 10;
@@ -56,7 +63,9 @@ namespace SpatialToolkit
             if (dimensionKey == null) return;
             if (dimensionBefore != JsonUtility.ToJson(Session))
             { undo.Add(dimensionBefore); if (undo.Count > 50) undo.RemoveAt(0); }
-            dimensionKey = null;
+            dimensionKey = null; dimensionDragging = false;
+            if (Selection?.kind == ToolkitItemKind.Furniture) RenderItem(Selection);
+            if (palette) palette.Rebuild();
             try { File.WriteAllText(PreferencesPath, JsonUtility.ToJson(Preferences)); }
             catch (Exception e) { Debug.LogWarning("Settings not saved: " + e.Message); }
             Message("Dimension updated.");

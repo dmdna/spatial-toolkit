@@ -104,10 +104,11 @@ namespace SpatialToolkit
         }
         public static Text Text(Transform parent, Vector2 size, Vector2 position, string content, int fontSize, Color color)
         {
-            var go = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(Text));
+            var go = new GameObject("Text", typeof(RectTransform), typeof(CanvasRenderer), typeof(ToolkitNumericText));
             var rect = go.GetComponent<RectTransform>(); rect.SetParent(parent, false);
             rect.sizeDelta = size; rect.anchoredPosition = position;
             var text = go.GetComponent<Text>(); text.font = Font; text.fontSize = fontSize;
+            text.supportRichText = false; // Legacy Text has no tabular-number markup.
             text.color = color; text.alignment = TextAnchor.MiddleCenter; text.text = content;
             text.horizontalOverflow = HorizontalWrapMode.Wrap; text.verticalOverflow = VerticalWrapMode.Overflow;
             text.raycastTarget = false; return text;

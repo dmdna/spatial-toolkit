@@ -49,7 +49,7 @@ public static partial class ToolkitFeatureChecks
                 off.Ray = new Ray(head.position, (row - head.position).normalized); off.TriggerDown = off.TriggerHeld = true; PreviewFrame(main, off);
                 off.TriggerDown = false; off.Ray = new Ray(head.position, (row + palette.transform.right * 0.5f - head.position).normalized);
                 Set("dimensionAt", Time.unscaledTime - 0.3f); main.RotateAxis = 1; PreviewFrame(main, off); yaw = (float)Get("fitPreviewYaw");
-                check((bool)Get("interactionOffHand") && Get("dimensionKey") != null && yaw > 0 && preview.transform.localScale == app.Preferences.furniture,
+                check((bool)Get("interactionOffHand") && Get("dimensionKey") != null && yaw > 0 && ((Transform)Get("fitPreviewBox")).localScale == app.Preferences.furniture,
                     label + "main-hand stick rotates and resizes the preview during an off-hand drag beyond the menu");
                 main.RotateAxis = 0; off.TriggerHeld = false; PreviewFrame(main, off);
                 check(((System.Collections.Generic.List<string>)Get("undo")).Count == undoCount, label + "preview changes create no placed-item undo records");
@@ -138,7 +138,7 @@ public static partial class ToolkitFeatureChecks
                     check(!(bool)Get("menuBlocked") && (string)Get("dimensionKey") == key && (bool)Get("interactionOffHand"), label + "dimension drag stays captured beyond the entire panel");
                     check(preview.activeSelf && Vector3.Distance(initial, preview.transform.position) < 0.001f, label + "leaving the UI never moves the preview to the off-hand surface");
                     check((tool == 1 ? app.Preferences.furniture.x : app.Preferences.frame.x) > (tool == 1 ? 0.5f : 0.4f), label + "dimension continues increasing outside the UI");
-                    if (tool == 1) check(preview.transform.localScale == app.Preferences.furniture, label + "preview size updates live outside the UI");
+                    if (tool == 1) check(((Transform)Get("fitPreviewBox")).localScale == app.Preferences.furniture, label + "preview size updates live outside the UI");
                     surface.x += 0.2f; main.Ray = new Ray(head.position, (surface - head.position).normalized); PreviewFrame(main, off);
                     preview = (GameObject)Get(tool == 1 ? "fitPreview" : "hangPreview");
                     check(Mathf.Abs(preview.transform.position.x - surface.x) < 0.02f && preview.activeSelf, label + "main hand continues moving its preview during the off-hand drag");

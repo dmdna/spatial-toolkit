@@ -94,16 +94,26 @@ namespace SpatialToolkit
                 result[i] = new Vector2(-total * 0.5f + width * 0.5f + i * (width + gap), height * 0.5f - topInset);
             return result;
         }
-        public static string Distance(float meters, bool imperial)
+        // All readouts share this layout, including at rest. The live argument is
+        // retained for existing callers; interaction state never changes formatting.
+        // Figure spaces reserve integer columns; ToolkitNumericText enforces digit-cell advances.
+        public static string Number(double value, bool live = false, int integerDigits = 4)
         {
-            if (!imperial) return meters.ToString("0.00", CultureInfo.InvariantCulture) + " m";
-            int eighths = (int)Math.Round(meters / 0.0254 * 8, MidpointRounding.AwayFromZero);
-            int feet = eighths / 96; float inches = (eighths % 96) / 8f;
-            return feet + " ft " + inches.ToString("0.###", CultureInfo.InvariantCulture) + " in";
+            string number = value.ToString("0.000", CultureInfo.InvariantCulture);
+            int dot = number.IndexOf('.');
+            return number.PadLeft(number.Length + Math.Max(0, integerDigits - (dot < 0 ? number.Length : dot)), '\u2007');
         }
-        public static string Area(float squareMeters, bool imperial) =>
-            (imperial ? squareMeters * 10.7639104f : squareMeters).ToString("0.00", CultureInfo.InvariantCulture) +
-            (imperial ? " sq ft" : " m²");
+        public static string Distance(float meters, bool imperial, bool live = false)
+        {
+            if (!imperial) return Number(meters, live) + " m";
+            // Round total inches first, so 11.9999 inches carries into feet.
+            double inches = Math.Round(meters / 0.0254 * 1000, MidpointRounding.AwayFromZero) / 1000;
+            int feet = (int)Math.Floor(inches / 12);
+            return feet.ToString(CultureInfo.InvariantCulture).PadLeft(4, '\u2007') + " ft " + Number(inches - feet * 12, live, 2) + " in";
+        }
+        public static string Area(float squareMeters, bool imperial, bool live = false) =>
+            Number(imperial ? squareMeters * 10.7639104f : squareMeters, live, 6) + (imperial ? " sq ft" : " m\u00b2");
+        public static string Angle(float degrees, bool live = false) => Number(degrees, live, 3) + "\u00b0";
         public static float LevelError(Vector3 axis) => Mathf.Asin(Mathf.Clamp(Mathf.Abs(axis.normalized.y), 0, 1)) * Mathf.Rad2Deg;
         public static float PlumbError(Vector3 axis) => Vector3.Angle(axis, axis.y < 0 ? Vector3.down : Vector3.up);
     }
