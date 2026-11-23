@@ -10,10 +10,21 @@ public static class PicoDevelopmentBuild
     [MenuItem("PICO/Project/Build Development APK")]
     public static void Build()
     {
+        BuildApk(BuildOptions.Development | BuildOptions.AllowDebugging);
+    }
+
+    [MenuItem("PICO/Project/Build Release APK")]
+    public static void BuildRelease()
+    {
+        BuildApk(BuildOptions.None);
+    }
+
+    static void BuildApk(BuildOptions options)
+    {
         WriteBuildResult("building", "");
         try
         {
-            BuildCore();
+            BuildCore(options);
             WriteBuildResult("succeeded", "Builds/Android/spatial-toolkit.apk");
         }
         catch (System.Exception exception)
@@ -41,7 +52,7 @@ public static class PicoDevelopmentBuild
         }, true));
     }
 
-    static void BuildCore()
+    static void BuildCore(BuildOptions options)
     {
         if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android)
             throw new BuildFailedException("Switch the active build target to Android first.");
@@ -77,11 +88,11 @@ public static class PicoDevelopmentBuild
                 scenes = scenes,
                 target = BuildTarget.Android,
                 locationPathName = "Builds/Android/spatial-toolkit.apk",
-                options = BuildOptions.Development | BuildOptions.AllowDebugging
+                options = options
             });
             if (report.summary.result != BuildResult.Succeeded)
                 throw new BuildFailedException($"Android build failed: {report.summary.result}");
-            Debug.Log($"Development APK: {Path.GetFullPath(report.summary.outputPath)}");
+            Debug.Log($"Android APK: {Path.GetFullPath(report.summary.outputPath)}");
         }
         finally
         {

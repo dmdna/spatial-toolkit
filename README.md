@@ -4,7 +4,7 @@
 
 Spatial Toolkit is a mixed reality workbench for measuring and planning changes to a physical room. It overlays measurement paths, furniture-sized boxes, picture layouts, and level guides on PICO video passthrough, using the scanned room mesh for surface placement and collision checks.
 
-The app targets **PICO OS 6 / Project Swan** through Unity's native PICO XR runtime on Android. The current build is **0.4.8 (Android version code 14)**, installed and startup-verified on the connected Swan headset. It is developed with **Unity 6000.3.11f1**. The project uses `picoxr` mode; Spatial Adapter is also installed, but this app runs in PICO XR mode.
+The app targets **PICO OS 6 / Project Swan** through Unity's native PICO XR runtime on Android. The current build is **1.0.1 (Android version code 16)**, built with **PICO Unity XR SDK 6.2.0**. It is developed with **Unity 6000.3.11f1**. The project uses `picoxr` mode; Spatial Adapter is also installed, but this app runs in PICO XR mode.
 
 Created by **Diego Medina Molina and the PICO Vibe Lab**.
 
@@ -13,7 +13,7 @@ Created by **Diego Medina Molina and the PICO Vibe Lab**.
 - **Smart Measure:** Place connected measurement nodes on scanned surfaces, read segment lengths, and close planar outlines to calculate area. Supports concave outlines, node editing, and metric or imperial units. Invalid or nonplanar areas are rejected.
 - **Fit Check:** Enter exact furniture width, height, and depth, then place, rotate, drag, or resize a translucent box in the room. The selected main hand owns the placement preview, even while the off-hand holds and drags a dimension beyond the menu. Its thumbstick rotates the preview smoothly before placement; the placed box keeps that exact orientation. Collision checks reject overlapping placements and resizes; blocked drag previews turn red.
 - **Picture Hanging:** Preview and place groups of one to eight equal-sized frames with exact dimensions, spacing, and hanger inset. Frame outlines and individual nail crosshairs update as values change.
-- **Level & Plumb:** Automatically preview and place a wall grid or horizontal grid according to the pointed surface, with connected paths and angle readouts. Horizontal grids start aligned to a nearby scanned vertical face when available, rotate like Fit Check, and include a 1.2 m center plumb line plus two vertical half-grids. The half-grids fade smoothly when viewed edge-on and remain more transparent than the floor grid. Wall grids retain their gravity alignment. Controller orientation or approximate finger alignment supplies the live level reference; the app does not automatically recognize physical object edges.
+- **Level & Plumb:** Automatically preview and place a wall grid or horizontal grid according to the pointed surface, with connected paths and angle readouts. Horizontal grids start aligned to a nearby scanned vertical face when available, support stepped wrist rotation and continuous two-hand rotation, and include a 1.2 m center plumb line plus two vertical half-grids. The half-grids fade smoothly when viewed edge-on and remain more transparent than the floor grid. Wall grids retain their gravity alignment. Controller orientation or approximate finger alignment supplies the live level reference; the app does not automatically recognize physical object edges.
 - **Flexible input:** Use controllers, native hand rays, eye gaze with pinch, head aim with pinch, or hands-free dwell. The selected hand places new measurements; both hands can operate menus and select or drag placed items. The off-hand pointer appears over interactable targets, including in wrist mode. Two hands rotate a Fit box smoothly without scaling it; single-hand wrist twists rotate in 15-degree steps. Eye input depends on supported hardware, calibration, and permission. Gaze dots use 0.6 alpha to keep covered text readable.
 - **Wrist and floating menus:** Reveal the wrist palette with a wristwatch gesture, pin it in space, or minimize it to a compact bar. Floating panels can be dragged from their header or compact background and stay upright facing the user.
 - **Selection and editing:** Select placed items to edit their values, drag nodes and objects, delete individual items, or start new paths from existing nodes. Tap and release a dimension row for the keypad, or hold for 0.25 seconds and drag horizontally for millimeter adjustments with live previews. One complete drag is one undo step. Fit rotation buttons appear above Delete in the selected box's editing panel, with equal spacing between editing rows.
@@ -32,12 +32,12 @@ Measurements depend on room scanning and tracking quality. Physical measurement 
 
 1. Open the repository with Unity **6000.3.11f1**, with Android Build Support installed, and wait for compilation.
 2. Open `Assets/Scenes/SpatialToolkitWorkbench.unity`.
-3. Press Play for the simulated desktop room, or select **PICO > Project > Build Development APK** for Android. Keep the Android build target and configure signing credentials in Unity when required.
+3. Press Play for the simulated desktop room, or select **PICO > Project > Build Release APK** for a release or **Build Development APK** for debugging. Keep the Android build target and configure signing credentials in Unity when required.
 4. Find the APK at `Builds/Android/spatial-toolkit.apk`. The build helper records its result in `Logs/AndroidBuildResult.json`.
 
 Desktop controls: left click places or selects, right drag moves an item, **Z** undoes, **B** toggles snapping, and the mouse wheel changes pointer reach. Click and release a dimension row to enter a value, or hold and drag left/right to adjust it.
 
-Controller controls: the selected hand's trigger places new measurements; either trigger selects UI or placed items, and grip drags. **A/X** undoes, **B/Y** toggles snapping, thumbstick up/down changes pointer reach, and left/right turns the live Fit preview or selected Fit box at a constant **30 degrees per second** without snapping. Before placement, only the selected main hand's stick rotates the preview. Pinch selects with either hand; hold a pinch on an item to drag, then release to drop. Twist a single pinched wrist for 15-degree Fit rotation, or grab the same box with both hands for continuous rotation without scaling. Releasing either hand continues the grab with the remaining hand. Reach controls are in Settings. The Left/Right selection also resets the menu to the other wrist.
+Controller controls: the selected hand's trigger places new measurements; either trigger selects UI or placed items, and grip drags. **A/X** undoes, **B/Y** toggles snapping, thumbstick up/down changes pointer reach, and left/right turns the live Fit preview or selected Fit box at a constant **30 degrees per second** without snapping. Before placement, only the selected main hand's stick rotates the preview. Pinch selects with either hand; hold a pinch on an item to drag, then release to drop. While holding a Fit box with one pinch, turn your wrist like a dial. A clockwise twist turns the box clockwise as viewed from above, in 15-degree steps. Grab the same box with both hands for continuous rotation without scaling. Releasing either hand continues the grab with the remaining hand. Reach controls are in Settings. The Left/Right selection also resets the menu to the other wrist.
 
 See [SETUP.txt](SETUP.txt) for MR configuration, emulator and device installation, controller-free operation, and command-line helpers. See [APP-NOTES.txt](APP-NOTES.txt) for implementation details and historical verification records; the changelog below describes subsequent changes to earlier behavior.
 
@@ -46,6 +46,18 @@ When another input mode is selected, pressing a trigger, grip, face button, menu
 ## Changelog
 
 All numbered builds recorded to date are listed newest first. Earlier changes and verification are reconstructed from the repository's implementation notes and build records. Verification counts describe checks recorded for each build.
+
+### 1.0.1 — PICO Unity XR SDK 6.2.0
+
+- Built the signed Android release with PICO Unity XR SDK 6.2.0, upgraded from 6.1.1. The first build attempt succeeded.
+- Verified version 1.0.1, Android version code 16, and the APK v2 signature. Unity reported 16 KB alignment warnings for three PICO spatial audio libraries.
+- Installed 1.0.1 (code 16) on the Swan headset and verified a successful cold launch, running process, and resumed foreground activity. Physical acceptance testing is pending. No emulator run was performed.
+
+### 1.0.0 — First release
+
+- A clockwise one-hand wrist twist turns a held Fit Check box clockwise when viewed from above. Each step is 15 degrees.
+- All 14 Unity hand and menu replay checks passed, including the signed box rotation and unchanged position during a stationary twist. Physical acceptance of the wrist gesture is pending.
+- The release build menu uses the configured Android signing key and disables Unity development and script debugging options. The signed 1.0.0 release APK (Android version code 15) built successfully on its first attempt. Unity warned about the unconfigured PICO app ID and native audio library alignment, among other SDK warnings. Installed on the Swan headset and verified the installed version, successful cold launch, running process, and resumed foreground activity. No emulator run was performed.
 
 ### 0.4.8 — Fixed dimension grids
 

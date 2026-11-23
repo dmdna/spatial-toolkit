@@ -10,7 +10,7 @@ NORMAL BUILD AND RUN (NO AI OR MCP CONNECTION REQUIRED)
 2. Open Assets/Scenes/SpatialToolkitWorkbench.unity.
 3. Save with Ctrl+S. To refresh the app's MR wiring, run
    PICO > Project > Finish MR Workbench Setup, then save again.
-4. Select PICO > Project > Build Development APK.
+4. Select PICO > Project > Build Release APK for submission, or Build Development APK for debugging.
    If Unity asks whether to save modified scenes, choose Save.
    Keep your keystore/key selected in Player Settings > Publishing Settings;
    enter passwords there if Unity requests them after restarting.
@@ -105,7 +105,7 @@ hand. Both hands can select and drag placed items or operate the UI; the
 off-hand ray and dot appear only over interactable targets. Eye/head aim
 accepts pinches from either hand. Two hands can hold one Fit box to turn it
 smoothly without scaling; release either hand to continue with the other.
-Wrist twist during a one-hand pinch turns the box in 15-degree steps.
+While holding a box with one pinch, twist your wrist like a dial. Clockwise turns the box clockwise viewed from above, in 15-degree steps.
 Pinch an existing item/node, hold, then move: drag. Release: drop.
 Gaze is captured on pinch, so looking elsewhere cannot move a held item.
 With one hand, the menu sits beside the initial view in world space; it

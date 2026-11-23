@@ -48,7 +48,7 @@
         "com.unity.ugui": "1.0.0",
         "com.unity.textmeshpro": "3.0.6"
       },
-      "hash": "75699354718f13fc9cb7c0a756bb4508913b7acd"
+      "hash": "673b0f84355585c45aaf0ba477d48f480472e51d"
     },
     "com.plattar.unitygltf": {
       "version": "https://github.com/Pico-Developer/gltf-exporter.git?path=package/com.plattar.unitygltf#master",

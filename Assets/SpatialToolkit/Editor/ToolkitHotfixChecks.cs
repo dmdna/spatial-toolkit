@@ -45,7 +45,7 @@ public static partial class ToolkitFeatureChecks
             Invoke("BeginGrabHandle", handle); Vector3 original = box.position;
             Set("validSurface", true); Set("target", app.RoomRoot.TransformPoint(box.position) - Vector3.up * 0.4f); Set("targetNormal", Vector3.up);
             state.Rotation = Quaternion.AngleAxis(60, state.Ray.direction); state.Forward = state.Rotation * Vector3.forward; Set("state", state); Call("UpdateGrab");
-            check(Vector3.Distance(original, box.position) < 0.0001f && Quaternion.Angle(box.rotation, Quaternion.identity) > 55, "A held Fit box follows a sixty-degree wrist twist without changing its translation");
+            check(Vector3.Distance(original, box.position) < 0.0001f && Quaternion.Angle(app.RoomRoot.rotation * box.rotation, Quaternion.AngleAxis(-60, Vector3.up) * app.RoomRoot.rotation) < 0.01f, "A held Fit box maps wrist roll to opposite signed yaw without moving");
             Invoke("CancelGrab", true); FreshItems();
 
             app.Preferences.wristGestureDisabled = true; palette.ResetWristPose();

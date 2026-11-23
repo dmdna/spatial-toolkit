@@ -528,6 +528,7 @@ namespace SpatialToolkit
                 {
                     if (item.kind == ToolkitItemKind.Furniture) point += Vector3.up * item.dimensions.y * 0.5f;
                     float yaw = state.Gesture ? WristYaw() : Mathf.DeltaAngle(grabYaw, Mathf.Atan2(state.Forward.x, state.Forward.z) * Mathf.Rad2Deg);
+                    if (state.Gesture && item.kind == ToolkitItemKind.Furniture) yaw = -yaw;
                     if (state.Gesture || Snapping) yaw = Mathf.Round(yaw / 15) * 15;
                     grabStickYaw += state.RotateAxis * 30 * Time.unscaledDeltaTime;
                     yaw += grabStickYaw;
